@@ -1,0 +1,38 @@
+name: blankbox
+
+services:
+  blankbox:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${BLANKBOX_IMAGE:-blankbox-community:local}
+    restart: unless-stopped
+    init: true
+    ports:
+      - "${BLANKBOX_BIND_ADDRESS:-127.0.0.1}:${BLANKBOX_PUBLISHED_PORT:-25265}:25265"
+    environment:
+      BLANKBOX_DATA: /data
+      BLANKBOX_HOST: 0.0.0.0
+      BLANKBOX_PORT: "25265"
+      # To read bind-mounted imports, set a JSON array such as:
+      # BLANKBOX_SOURCES: '["/imports/movies", "/imports/photos"]'
+      # BLANKBOX_BACKUP: /backup
+      # BLANKBOX_BACKUP_EVERY_HOURS: "24"
+    volumes:
+      - blankbox-data:/data
+      # Host media should be mounted read-only. Example:
+      # - /srv/media:/imports/movies:ro
+      # A backup destination must be writable. Example:
+      # - /srv/blankbox-backup:/backup:rw
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    stop_grace_period: 30s
+
+volumes:
+  blankbox-data:

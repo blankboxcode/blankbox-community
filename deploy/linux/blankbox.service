@@ -1,0 +1,34 @@
+[Unit]
+Description=Blank Box Core
+Documentation=https://blankbox.org/self-hosted/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=blankbox
+Group=blankbox
+WorkingDirectory=/opt/blankbox/current
+ExecStart=/usr/bin/python3 /opt/blankbox/current/server.py --config /etc/blankbox/config.json
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+KillSignal=SIGTERM
+UMask=0077
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectKernelLogs=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

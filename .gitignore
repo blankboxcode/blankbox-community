@@ -1,0 +1,7 @@
+node_modules/
+box/web/
+artifacts/
+__pycache__/
+*.pyc
+*.tsbuildinfo
+.env
