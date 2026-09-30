@@ -30,7 +30,7 @@ No Blank Box online account, subscription or connected media server is required.
 
 ## Download
 
-The current installation prerelease is **0.1.0-beta.8**.
+Choose the installation package for your computer. Each ZIP includes the application, setup tools and guides.
 
 | Your installation | Download | Instructions |
 | --- | --- | --- |
@@ -53,7 +53,7 @@ These quick starts create a **fresh library**. For an existing library, follow [
 Requires a Debian/Ubuntu-class computer with **Python 3.10+ and systemd**.
 
 1. Download and extract the **Linux / Docker ZIP** above.
-2. Open the extracted `blankbox-community-0.1.0-beta.8` folder until you see `setup-linux.sh` and `RELEASE.json`. Choose **Open in Terminal** in your file manager.
+2. Open the extracted application folder until you see `setup-linux.sh` and `RELEASE.json`. Choose **Open in Terminal** in your file manager.
 3. Run:
 
    ```sh
@@ -92,14 +92,14 @@ None of the three access choices automatically enables outside-home Internet acc
 
 4. Keep that window open. Open `http://127.0.0.1:25265`, using your chosen port if different. Read `%LOCALAPPDATA%\BlankBox\data\access-key.txt` privately to claim your owner profile.
 
-The optional startup task runs **after user sign-in**, not as an always-on Windows service. Native Windows/NTFS acceptance remains open. [Full Windows guide](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.8/guides/WINDOWS.md)
+The optional startup task runs **after user sign-in**, not as an always-on Windows service. [Full Windows guide](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.8/guides/WINDOWS.md)
 
 ## Quick start with Docker
 
 Requires a **Linux host with Docker Engine and the Docker Compose plugin**. Host Python 3.10+ is used by the package verification tools. We build the image locally from the installation ZIP; there is no published Blank Box registry image. The first build may download the pinned Python base image.
 
 1. Download, verify and extract the **Linux / Docker ZIP** above.
-2. Open a terminal in the extracted `blankbox-community-0.1.0-beta.8` folder. Check that `compose.yaml`, `Dockerfile` and `blankbox.env.example` are visible.
+2. Open a terminal in the extracted application folder. Check that `compose.yaml`, `Dockerfile` and `blankbox.env.example` are visible.
 3. Start a fresh empty library:
 
    ```sh
@@ -126,11 +126,22 @@ Run `docker compose up --detach --wait --wait-timeout 240` to apply the change, 
 
 Your library persists in the `blankbox_blankbox-data` named volume. `docker compose down` retains it; omit `--volumes` when keeping the library. Follow the [Docker guide](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.8/guides/DOCKER.md) to add read-only source mounts, a writable backup mount and permissions for UID/GID `10001`. This empty-library quick start does not mount your drives or configure backups automatically.
 
-## Build your first library
+## Make it your library
 
-Add one physical item, index a configured folder or deliberately connect Plex/Jellyfin. Check one title and its sources before importing your whole collection. Your corrections and confirmed facts stay in the saved household catalog.
+Start with a shelf, a folder or a connected catalog, then bring the rest of your collection together at your own pace.
 
-[First-library walkthrough](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.8/FIRST-STEPS.md) · [Setup help](https://github.com/blankboxcode/blankbox-community/issues/new?template=02-setup-help.yml) · [Wiki](https://github.com/blankboxcode/blankbox-community/wiki)
+| What you want to do | How it works |
+| --- | --- |
+| Catalog discs, books, records and other physical media | Add a title or scan a barcode, review the edition, then record each copy's format, condition and location. |
+| Browse files on your drives | Configure a readable source folder, index it and review the proposed matches. Files remain in their original locations. |
+| Bring in Plex or Jellyfin | Connect your existing server and sync its catalog. Keep its source alongside physical copies and local files for the same title. |
+| Organize shelves and collections | Save custom groups or collections based on genre, format and other rules; record favorites and local activity. |
+| Read, listen or watch | Choose an available source from a title. Use the built-in player or reader for supported files, a connected service, or a compatible external app. |
+| Add and correct details | Review optional offline references or connected metadata, save your own corrections, and choose or upload cover art. |
+
+A title, an edition and a copy describe different parts of your collection. A digital file or connected source gives access to a title; it does not automatically record an owned physical copy. Review possible matches before combining records.
+
+[Getting started](https://github.com/blankboxcode/blankbox-community/wiki/Getting-Started) · [Using your library](https://github.com/blankboxcode/blankbox-community/wiki/Using-Your-Library) · [Organizing collections](https://github.com/blankboxcode/blankbox-community/wiki/Organizing-Collections) · [Offline metapacks](https://github.com/blankboxcode/blankbox-community/wiki/Offline-Metapacks)
 
 ## Protect and update your library
 
@@ -140,9 +151,9 @@ Core and metapacks update independently and optionally. Keep earlier software an
 
 ## Feedback and support
 
-We welcome [bugs, setup questions, feedback and beta test results](https://github.com/blankboxcode/blankbox-community/issues/new/choose). Include your exact version, device/OS, action, expected result and actual result. Keep household titles, paths, credentials, catalogs and backups out of public reports. Support is best effort.
+We welcome [bugs, setup questions, feedback and experiences](https://github.com/blankboxcode/blankbox-community/issues/new/choose). Include your installed version, device/OS, action, expected result and actual result. Keep household titles, paths, credentials, catalogs and backups out of public reports. Support is best effort.
 
-[Feedback guide](FEEDBACK.md) · [Support](SUPPORT.md) · [Focused beta checks](https://github.com/blankboxcode/blankbox-community/wiki/Beta-Test-Checklist)
+[Feedback guide](FEEDBACK.md) · [Support](SUPPORT.md) · [User guides](https://github.com/blankboxcode/blankbox-community/wiki)
 
 ## License and source builds
 

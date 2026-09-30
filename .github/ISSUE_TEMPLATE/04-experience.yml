@@ -1,0 +1,44 @@
+name: Share your experience
+description: Tell us how Blank Box works with your devices and everyday workflows.
+title: "[Experience] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Tell us what you used and how it went. Useful experiences include installation, organizing a collection, playback and recovery.
+        Use sample names and share outcomes rather than household records, media, backups or credentials.
+  - type: input
+    id: version
+    attributes:
+      label: Blank Box version
+      placeholder: Copy the installed version from Settings, or write unknown.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: OS, installation method, device and browser
+      placeholder: Linux systemd, desktop Firefox and Android Chrome; or unknown
+    validations:
+      required: true
+  - type: textarea
+    id: workflow
+    attributes:
+      label: What did you use Blank Box for?
+      description: Describe the workflow and any relevant format or storage type, using sample names.
+    validations:
+      required: true
+  - type: textarea
+    id: experience
+    attributes:
+      label: What worked well, and what could be better?
+      description: Include any step that needed help. Share timings only if you measured them.
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Before posting
+      options:
+        - label: I checked my text and attachments and removed household data and credentials.
+          required: true

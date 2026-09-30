@@ -5,14 +5,14 @@ body:
   - type: markdown
     attributes:
       value: |
-        We welcome reproducible beta reports. Search existing issues first and use sample names.
+        Tell us how to reproduce the problem. Search existing issues first and use sample names.
         This report is public: do not include catalogs, backups, media, private paths, recovery keys, passwords or provider tokens.
   - type: input
     id: version
     attributes:
       label: Blank Box version
       description: Check Settings → System & About, or write unknown if setup never started.
-      placeholder: 0.1.0-beta.8
+      placeholder: Copy the installed version from Settings, or write unknown.
     validations:
       required: true
   - type: dropdown

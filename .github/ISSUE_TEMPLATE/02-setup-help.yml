@@ -11,7 +11,7 @@ body:
     id: version
     attributes:
       label: Blank Box version or ZIP name
-      placeholder: blankbox-community-0.1.0-beta.8.zip; or unknown
+      placeholder: Copy the version or full ZIP filename, or write unknown.
     validations:
       required: true
   - type: input

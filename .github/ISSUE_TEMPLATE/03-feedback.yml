@@ -11,7 +11,7 @@ body:
     id: environment
     attributes:
       label: Version and device/operating system
-      placeholder: 0.1.0-beta.8, Linux server and Firefox desktop; or unknown
+      placeholder: Installed version, Linux server and Firefox desktop; or unknown
     validations:
       required: true
   - type: textarea
