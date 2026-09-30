@@ -34,17 +34,17 @@ Choose the installation package for your computer. Each ZIP includes the applica
 
 | Your installation | Download | Instructions |
 | --- | --- | --- |
-| Linux with systemd | [Linux / Docker ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v0.1.0-beta.8/blankbox-community-0.1.0-beta.8.zip) | [Linux ZIP install](#linux) |
-| Docker on Linux | The same [Linux / Docker ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v0.1.0-beta.8/blankbox-community-0.1.0-beta.8.zip) | [Docker quick start](#quick-start-with-docker) |
+| Linux with systemd | [Linux / Docker ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v0.1.0-beta.9/blankbox-community-0.1.0-beta.9.zip) | [Linux ZIP install](#linux) |
+| Docker on Linux | The same [Linux / Docker ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v0.1.0-beta.9/blankbox-community-0.1.0-beta.9.zip) | [Docker quick start](#quick-start-with-docker) |
 | Windows 10/11 x64 — **experimental** | [Windows x64 ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v0.1.0-beta.8/blankbox-community-0.1.0-beta.8-windows-x64.zip) | [Windows ZIP install](#windows-experimental) |
 
 **Installation ZIPs include the prebuilt interface: you do not need Node.js, npm or a source build.** Windows includes its own Python runtime; native Linux needs Python 3.10+.
 
-[All release files and checksums](https://github.com/blankboxcode/blankbox-community/releases/tag/v0.1.0-beta.8) · [Verify your download](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.8/UPDATES.md#trust) · [Platform status](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.8/PLATFORMS.md)
+[Linux / Docker release files and checksums](https://github.com/blankboxcode/blankbox-community/releases/tag/v0.1.0-beta.9) · [Verify your download](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.9/UPDATES.md#trust) · [Platform status](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.9/PLATFORMS.md)
 
 Verify the package before running setup. A checksum detects changed bytes; first-download publisher trust needs independent confirmation of the signing-key fingerprint. The verification guide explains the trusted verifier.
 
-These quick starts create a **fresh library**. For an existing library, follow [Updates](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.8/UPDATES.md) or [Recovery](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.8/RECOVERY.md). GitHub's automatic source archives and the source ZIP are developer downloads, not the guided installation package.
+These quick starts create a **fresh library**. For an existing library, follow [Updates](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.9/UPDATES.md) or [Recovery](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.9/RECOVERY.md). GitHub's automatic source archives and the source ZIP are developer downloads, not the guided installation package.
 
 ## Install from a ZIP
 
@@ -68,7 +68,7 @@ Requires a Debian/Ubuntu-class computer with **Python 3.10+ and systemd**.
 | **2 — Trusted home network by IP** | On the server or another trusted home-network device: `http://SERVER-IP:25265`. |
 | **3 — The same network plus blankbox.local** | The same access as option 2, plus `http://blankbox.local:25265` where discovery works. The IP address still works. |
 
-Replace `SERVER-IP` with the server's local address from its network settings or your router's device list. Use your chosen port in every address. Option 3 needs optional Avahi discovery packages **before** running setup; see the [Linux guide](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.8/guides/LINUX.md).
+Replace `SERVER-IP` with the server's local address from its network settings or your router's device list. Use your chosen port in every address. Option 3 needs optional Avahi discovery packages **before** running setup; see the [Linux guide](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.9/guides/LINUX.md).
 
 Read the recovery key privately on the server:
 
@@ -124,7 +124,7 @@ BLANKBOX_PUBLISHED_PORT=25265
 
 Run `docker compose up --detach --wait --wait-timeout 240` to apply the change, then open `http://SERVER-IP:25265` on the other device. Use the host's local IP and your selected port. This does not set up outside-home access, a friendly name or HTTPS.
 
-Your library persists in the `blankbox_blankbox-data` named volume. `docker compose down` retains it; omit `--volumes` when keeping the library. Follow the [Docker guide](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.8/guides/DOCKER.md) to add read-only source mounts, a writable backup mount and permissions for UID/GID `10001`. This empty-library quick start does not mount your drives or configure backups automatically.
+Your library persists in the `blankbox_blankbox-data` named volume. `docker compose down` retains it; omit `--volumes` when keeping the library. Follow the [Docker guide](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.9/guides/DOCKER.md) to add read-only source mounts, a writable backup mount, or your own UID/GID and data bind folder. Our default UID/GID is `10001:10001`. This empty-library quick start does not mount your drives or configure backups automatically.
 
 ## Make it your library
 
@@ -147,7 +147,7 @@ A title, an edition and a copy describe different parts of your collection. A di
 
 Use a separate backup drive and test a restore into a **new empty destination**. Library recovery protects saved records, managed copies and paired offline-pack assets. It **cannot recreate missing linked source-drive originals**; protect those bytes separately. Portable restore excludes account/provider secrets, so reconnect Plex/Jellyfin afterward.
 
-Core and metapacks update independently and optionally. Keep earlier software and paired recovery material for rollback. [Recovery](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.8/RECOVERY.md) · [Updates](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.8/UPDATES.md)
+Core and metapacks update independently and optionally. Keep earlier software and paired recovery material for rollback. [Recovery](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.9/RECOVERY.md) · [Updates](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.9/UPDATES.md)
 
 ## Feedback and support
 

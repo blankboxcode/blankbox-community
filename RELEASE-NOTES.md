@@ -1,4 +1,13 @@
-# Blank Box 0.1.0-beta.8
+# Blank Box release notes
+
+## Docker user and storage settings — 0.1.0-beta.9
+
+We now support running the Docker container with your own non-root Linux UID/GID through Compose's `user` setting. Application files remain root-owned and readable by that user; your library data keeps its private permissions. The default stays `10001:10001`.
+
+You can store your library in a dedicated local host folder with a `/data` bind mount. Use `compose.override.yaml` for your settings, and make sure that folder and its contents belong to your selected user. Changing the mount does not copy an existing library. Update using your current settings before a separate user or storage move. See [Docker setup](guides/DOCKER.md#optional-choose-your-user-and-a-host-data-folder).
+
+This Linux/Docker update keeps catalog schema 20, metapack reader 5 and the same four optional signed starter metapacks. We retain the existing experimental Windows download; this release does not replace it.
+
 
 We prepared this beta for public review after the owner tested beta.7 on a Linux installation. Beta.8 keeps catalog schema 20, metapack reader 5 and the same Core library behavior. We changed the package guides and notices; we did not change the household catalog format or original source files.
 

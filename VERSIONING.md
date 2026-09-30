@@ -1,12 +1,12 @@
 # Versions and compatibility
 
-We identify this package as **0.1.0-beta.8**. We are still collecting hardware and recovery acceptance for this beta; consult [Platform status](PLATFORMS.md) before choosing an installation method. Later beta packages use increasing numbers. A stable release will omit the prerelease suffix.
+This Linux/Docker package is **0.1.0-beta.9**. We version application packages, catalog schemas and optional metapacks independently. See [Platform status](PLATFORMS.md) for supported installation paths. Our existing experimental Windows download remains available separately.
 
 Core version, catalog schema and metapack version are separate:
 
-| Component | This beta | Update rule |
+| Component | This package | Update rule |
 | --- | --- | --- |
-| Core | 0.1.0-beta.8 | Install an authenticated complete package; retain prior code and its recovery snapshot. |
+| Core | 0.1.0-beta.9 | Install an authenticated complete package; retain prior code and its recovery snapshot. |
 | Household catalog | Schema 20 | Upgrade only with a verified backup. A lower application version does not establish catalog compatibility. |
 | Metapack reader | 5 | Imported public packs require a trusted publisher signature and supported format. |
 | Included metapacks | Movies 4, Books 7, Music 5, TV Shows 4 | Versioned independently; existing selections and removals are retained. |
