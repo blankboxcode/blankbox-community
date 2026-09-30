@@ -1,0 +1,69 @@
+name: Bug report
+description: Report a failure or unexpected behavior in Blank Box Community.
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        We welcome reproducible beta reports. Search existing issues first and use sample names.
+        This report is public: do not include catalogs, backups, media, private paths, recovery keys, passwords or provider tokens.
+  - type: input
+    id: version
+    attributes:
+      label: Blank Box version
+      description: Check Settings → System & About, or write unknown if setup never started.
+      placeholder: 0.1.0-beta.8
+    validations:
+      required: true
+  - type: dropdown
+    id: installation
+    attributes:
+      label: Installation method
+      options:
+        - Linux systemd service
+        - Docker on Linux
+        - Windows x64 (experimental)
+        - Direct Python / restore test
+        - Source build
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Operating system and device/browser
+      placeholder: Ubuntu 24.04 server, Android phone with Chrome; or unknown
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Use sample titles and generic paths. Describe one problem per report.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+    validations:
+      required: true
+  - type: textarea
+    id: error
+    attributes:
+      label: Optional redacted error excerpt
+      description: A few relevant lines are enough. Review them for titles, private paths, addresses and secrets first.
+      render: text
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Before posting
+      options:
+        - label: I checked my text and attachments and removed household data and credentials.
+          required: true

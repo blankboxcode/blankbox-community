@@ -1,0 +1,40 @@
+name: Feedback or feature idea
+description: Describe a confusing workflow, a useful experience or a proposed improvement.
+title: "[Feedback] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        We welcome positive feedback and practical improvement ideas. Describe the goal and the step that mattered.
+        This is public. Use sample titles and leave out household records, private paths and credentials.
+  - type: input
+    id: environment
+    attributes:
+      label: Version and device/operating system
+      placeholder: 0.1.0-beta.8, Linux server and Firefox desktop; or unknown
+    validations:
+      required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: What were you trying to do?
+    validations:
+      required: true
+  - type: textarea
+    id: experience
+    attributes:
+      label: What worked, or what was confusing?
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested improvement
+      description: Optional. We may defer requests; submitting an idea does not promise a release date.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Before posting
+      options:
+        - label: I checked my text and attachments and removed household data and credentials.
+          required: true

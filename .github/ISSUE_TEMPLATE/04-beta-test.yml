@@ -1,0 +1,64 @@
+name: Beta test result
+description: Record a pass, failure or blocked step from a small beta acceptance check.
+title: "[Test] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Report only what you actually checked. A successful restore is useful evidence without claiming every recovery comparison passed.
+        Compare IDs and hashes privately. Share outcomes and approximate counts, not raw records, media, backups or credentials.
+  - type: input
+    id: version
+    attributes:
+      label: Blank Box version
+      placeholder: 0.1.0-beta.8
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: OS, installation method, device and filesystem if relevant
+      placeholder: Linux systemd, ext4, desktop Firefox; or unknown
+    validations:
+      required: true
+  - type: dropdown
+    id: check
+    attributes:
+      label: Check performed
+      options:
+        - Installation and access choices
+        - Library selection and navigation
+        - EPUB and audiobook behavior
+        - Selected track or episode attachment
+        - Restore and missing provider covers
+        - Detailed recovery comparison and source reconnection
+        - Full-machine reboot
+        - Native Windows / NTFS lifecycle (experimental)
+        - Other scoped check
+    validations:
+      required: true
+  - type: dropdown
+    id: outcome
+    attributes:
+      label: Result
+      options:
+        - Pass for the steps described below
+        - Failed
+        - Partially completed
+        - Blocked / could not run
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Steps, expected result and observed result
+      description: Include what you did not check. Use sample names. Report timings only if you measured them.
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Before posting
+      options:
+        - label: I checked my text and attachments and removed household data and credentials.
+          required: true

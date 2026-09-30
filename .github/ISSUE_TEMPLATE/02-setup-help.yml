@@ -1,0 +1,56 @@
+name: Setup help
+description: Ask about installation, access, source folders, sign-in or recovery instructions.
+title: "[Setup] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Tell us which step stopped you. Keep your package and existing library while reviewing a failed setup.
+        This is public. Use generic paths and never attach keys, tokens, catalogs, backups or media.
+  - type: input
+    id: version
+    attributes:
+      label: Blank Box version or ZIP name
+      placeholder: blankbox-community-0.1.0-beta.8.zip; or unknown
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Operating system and installation method
+      placeholder: Debian 12, Linux setup wizard; or unknown
+    validations:
+      required: true
+  - type: dropdown
+    id: access
+    attributes:
+      label: How are you trying to connect?
+      options:
+        - Directly on the server computer
+        - Trusted home network by server IP
+        - Trusted home network using blankbox.local
+        - Separately configured private VPN or proxy
+        - Not applicable / not sure
+    validations:
+      required: true
+  - type: textarea
+    id: guide-step
+    attributes:
+      label: Guide and step you followed
+      description: Give the guide name or link and the step number; omit private paths and real credentials.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: What did you expect, and what happened?
+      description: Include a short redacted error if there was one. For access problems, say whether opening Blank Box on the server itself works.
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Before posting
+      options:
+        - label: I checked my text and attachments and removed household data and credentials.
+          required: true
