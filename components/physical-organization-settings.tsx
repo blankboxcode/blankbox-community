@@ -4,7 +4,8 @@ import { useMemo, useState } from 'react';
 import { ArrowRight, Check, Plus, X } from 'lucide-react';
 import { PhysicalFormatPicker } from '@/components/physical-format-picker';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { commonGamePlatforms, type MediaItem, type Settings } from '@/lib/media';
+import { commonGamePlatforms, kindNames, type MediaItem, type Settings } from '@/lib/media';
+import { physicalFormatLabel, physicalFormats, physicalKindOptions, physicalPreferenceKinds, type PhysicalFormat, type PhysicalSearchSource } from '@/lib/physical-media';
 
 const standardPlatforms = new Set<string>(commonGamePlatforms);
 const platformGroups = [
@@ -76,6 +77,19 @@ export function PhysicalOrganizationSettings({ settings, items, locationsSummary
     <div className="settings-divider"/>
     <h3>Formats shown when adding media</h3>
     <PhysicalFormatPicker value={settings.physicalFormats} onChange={(physicalFormats) => onChange({ ...settings, physicalFormats })}/>
+    <h3>Defaults for new physical items</h3>
+    <p className="muted small">Choose the starting format for each media type. You can change it for any copy. A hidden default falls back to a visible compatible format; existing items stay unchanged.</p>
+    <div className="form-grid physical-default-formats">{physicalPreferenceKinds.map(kind => {
+      const formats = physicalFormats.filter(format => settings.physicalFormats.includes(format) && physicalKindOptions(format).includes(kind));
+      const selected = settings.physicalDefaultFormats?.[kind];
+      return <label className="field" key={kind}><span>{kindNames[kind]}</span><select aria-label={`Default format for ${kindNames[kind]}`} disabled={busy || !formats.length} value={selected && formats.includes(selected) ? selected : ''} onChange={event => {
+        const physicalDefaultFormats = { ...settings.physicalDefaultFormats };
+        if (event.target.value) physicalDefaultFormats[kind] = event.target.value as PhysicalFormat;
+        else delete physicalDefaultFormats[kind];
+        onChange({ ...settings, physicalDefaultFormats });
+      }}><option value="">{formats.length ? 'First visible compatible format' : 'Enable a compatible format above'}</option>{formats.map(format => <option key={format} value={format}>{physicalFormatLabel(format)}</option>)}</select></label>;
+    })}</div>
+    <label className="field"><span>Default title search</span><select aria-label="Default title search" disabled={busy} value={settings.physicalTitleSearchSource || 'packs'} onChange={event => onChange({ ...settings, physicalTitleSearchSource: event.target.value as PhysicalSearchSource })}><option value="packs">Blank Box Database</option><option value="household">My Library</option><option value="connected">Connected libraries</option></select><small>Blank Box Database searches installed Offline Metapacks. Switch sources while adding any item; this preference sets where each new draft starts.</small></label>
     <SavedValues title="Saved physical locations" description="Reuse room, shelf, cabinet, or box names while adding copies." values={settings.physicalLocations} placeholder="Living room, shelf 2" onChange={(physicalLocations) => onChange({ ...settings, physicalLocations })}/>
     <section className="game-platform-settings" aria-labelledby="game-platform-settings-title">
       <h3 id="game-platform-settings-title">Game consoles & platforms</h3>

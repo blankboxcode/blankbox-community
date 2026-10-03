@@ -1,4 +1,4 @@
-# Independent updates
+# Update Blank Box
 
 We keep Core and metapack updates separate and optional. Your existing library remains usable offline without either. We do not require an update service or background download.
 
@@ -12,13 +12,63 @@ python3 /path/to/trusted/release_files.py /path/to/extracted-new-package
 
 Public pack signatures are checked against the installed Core key before activation. Changing a pack database invalidates its signed hash. Changing the signature, publisher identity or manifest is rejected. Keep the trusted key with independent backups. A first download needs independent confirmation of the key fingerprint from the publisher. Publisher key rotation requires a separately reviewed Core/trust update; an imported pack cannot replace the key.
 
-## Core
+## Update your installation
 
-In **Settings → System & About → Update Blank Box software**, create a complete recovery point on a configured separate backup drive and wait for its job to finish. This is a preparation step. Blank Box's unprivileged service cannot replace operating-system application files. Verify the new package from a trusted source and run its platform installer as the machine administrator; do not give the web service installation privileges.
+Download `blankbox-community-0.1.0-beta.10.zip` from our [release page](https://github.com/blankboxcode/blankbox-community/releases/tag/v0.1.0-beta.10) and extract it into a **new folder**. Use the installation ZIP, not a source archive. Keep your current installation and data where they are.
 
-Stop Core before offline maintenance. Install into an immutable release directory using the platform guide. Preserve config, selected port, data and earlier code. Upgrade snapshots pair the SQLite catalog with installed packs, staged pack files and the bootstrap receipt. Failed Linux/Docker activation attempts recover the earlier release and snapshot. Check `/health/ready` and sign in before considering an upgrade complete. Windows currently requires foreground startup and manual acceptance; its startup task runs only after sign-in.
+Before updating, open **Settings → System & About → Update Blank Box software**, create a complete recovery point on your configured separate backup drive, and wait for it to finish. The web app prepares the backup; the platform installer performs the update. A library recovery point cannot recreate missing linked original files, so back up your source drives separately.
 
-Use `rollback-linux.sh` or `rollback-windows.ps1` for a compatible rollback. A schema downgrade requires the explicit pre-upgrade restore option. That replaces catalog state with the earlier snapshot, so preserve later edits first. Recovery makes an additional copy of the catalog before replacement. Do not mix a catalog and pack set with an older reader that cannot understand them.
+### Native Linux
+
+Open a terminal in the new extracted folder, where `RELEASE.json` and `install-linux.sh` are visible. For the standard installation:
+
+```sh
+python3 /opt/blankbox/current/release_files.py . --trusted-key /opt/blankbox/current/release-trust.json
+sudo ./install-linux.sh
+```
+
+Use your installed paths if you chose a different installation root. The installer keeps your account, library, port, access mode, sources and backup settings. It creates a paired pre-update snapshot, retains the previous application and checks readiness. Open your usual Blank Box address, sign in normally and refresh the browser. Check an existing item, its copies/artwork and your configured sources. Keep the previous release and snapshot.
+
+You only need `setup-linux.sh` again if you also want to change your access mode or port. See [Linux](guides/LINUX.md).
+
+### Docker on Linux
+
+1. Keep the current container available. If you stopped or removed it, start it from its existing release folder with its current settings first.
+2. Verify the new package using a trusted copy of `release_files.py` from your previous package, following [Trust](#trust).
+3. Copy your **existing** `.env` and any local Compose override files into the new extracted folder. Keep the same project name, image setting, numeric user and data volume or bind folder. Preserve other settings and secret files referenced by your configuration. If a bind path is relative, update it to point to the **same existing folder**; moving the release folder must not select a new data location.
+4. Open a terminal in the new folder and run:
+
+```sh
+./upgrade-docker.sh
+```
+
+The helper builds the image, stops Blank Box, creates a paired snapshot and checks the updated container. Failed activation restores the earlier image and snapshot. It retains the existing UID/GID and saves them in `.env`, including `10001:10001` from older default installations. It does not move data or change ownership. New installations use `1000:1000` by default.
+
+Sign in at your usual address and check your library. Keep the printed previous image tag and pre-update snapshot. Use the accepted image for later `docker compose up`; do not rebuild an old release folder over it. Changing user IDs or moving storage is a separate operation after the update works. See [Docker](guides/DOCKER.md) for bind mounts and source-folder access.
+
+### Windows
+
+Our separate Windows download remains the experimental **0.1.0-beta.8** package, schema **20**. This Linux/Docker update does not include a new Windows installer. Follow the guide supplied with the Windows package and do not open an upgraded schema 22 catalog with it.
+
+## Rollback
+
+This release upgrades beta.8/beta.9 Linux/Docker catalogs from schema **20 to 22**. Existing accounts, covers, copy IDs and reference selections are retained. An older Core cannot read schema 22. Returning to it requires both its application files and its **paired pre-update catalog/assets snapshot**. Preserve any later edits before restoring that earlier state.
+
+For a compatible native Linux rollback:
+
+```sh
+sudo /opt/blankbox/current/rollback-linux.sh
+```
+
+If the previous Core cannot read the current catalog, this refuses the switch. To deliberately return to the paired pre-update state after preserving later work:
+
+```sh
+sudo /opt/blankbox/current/rollback-linux.sh --restore-pre-upgrade-catalog
+```
+
+The restore replaces the active catalog with the earlier snapshot and retains an emergency copy of the newer state. Keep that copy with its matching `.assets` directory. Do not combine an older catalog with unrelated packs or receipts.
+
+For Docker, retain the previous image tag and catalog snapshot printed by the updater. Stop the service and restore the paired snapshot with `maintenance.py` from the **newer** image before starting an older image. Keep the same mounts, project and user. The [recovery guide](RECOVERY.md) explains paired snapshots; do not merely change the image tag against an upgraded catalog.
 
 ## Metapacks
 

@@ -12,18 +12,30 @@ We put this guide in every Community package so you can choose the right downloa
 
 `blankbox-source-VERSION.zip` is for people who want to build the browser client from source. It is not the guided installer or the package to use for a first restore drill. Replace `VERSION` with the release number on the ZIP you received, and keep all files from that one package together.
 
-The Linux/Docker ZIP contains the Linux service and Docker setup tools. The Windows ZIP contains the Windows setup tools and its own Python runtime. Both retain the same Core and in-app reference guides, so you can read help for a different computer without mixing installers.
+The current Linux/Docker ZIP is 0.1.0-beta.10 (catalog schema 22) and contains Linux service and Docker setup tools. The separate experimental Windows ZIP remains 0.1.0-beta.8 (schema 20), with its own Python runtime. Follow the guides supplied with your package; the older Windows download does not include this Linux/Docker feature update and cannot open a schema 22 catalog.
 
 Extract the chosen installation package into a new folder. Open that folder: you should see `RELEASE.json`, `restore.py` and the platform setup file. Check the publisher signature using an already trusted copy of `release_files.py` or compare the signing-key fingerprint through the publisher's independently verified release announcement before first installation. A checksum detects changed bytes; it does not identify the publisher.
 
 For a **fresh empty library**, run the setup path below. For a **restore test of an existing library on a new Linux computer**, do not run the setup wizard first. Follow [Recovery](RECOVERY.md) with the extracted Community ZIP and the complete backup folder: `restore.py` creates a new data folder, then `server.py` runs the restored library. A normal setup wizard creates its own separate installation and data folder.
+
+For an **existing installation**, use [Update your installation](UPDATES.md#update-your-installation). Native Linux uses `sudo ./install-linux.sh` from the new verified package to keep your configuration. Docker uses `./upgrade-docker.sh` with your existing `.env` and overrides. Keep the same library location, project name and numeric user.
 
 - Linux: `sudo ./setup-linux.sh`. Requires Python 3.10+ and systemd. See `guides/LINUX.md`.
 - Docker on Linux: configure `.env` and a separate `compose.override.yaml`, then `docker compose up --detach --build --wait --wait-timeout 240`. See `guides/DOCKER.md`.
 - Windows x64: extract the Windows package and open `setup-windows.cmd`. Its private Python runtime is included. See `guides/WINDOWS.md`. Windows remains experimental pending real-machine acceptance.
 - Direct Python: `python3 server.py --data /path/to/new-data --port 25265`.
 
-Open `http://127.0.0.1:25265`. Read the recovery key on the server to create your local owner profile. Keep the key privately for password recovery. Use your username and password for normal sign-in. No online account is required.
+## Choose where to open your Linux installation
+
+| Linux setup choice | Open Blank Box here |
+| --- | --- |
+| **1 — On this computer** | On the computer running Blank Box: `http://127.0.0.1:25265`. |
+| **2 — Trusted home network by IP** | On that computer, or another home-network device using `http://SERVER-IP:25265`. |
+| **3 — The same network plus blankbox.local** | The same access as option 2, with `http://blankbox.local:25265` as an optional friendly address. The IP address still works. |
+
+Replace `SERVER-IP` with the server's local IP address and use the port you selected. None of these choices automatically enables access from outside your home or disables outgoing Internet access. A private proxy or VPN configured separately has its own access settings. See [Linux](guides/LINUX.md) for the numbered setup steps and [Networking](guides/NETWORKING.md) if another device cannot connect.
+
+Open the address for your chosen access mode. Direct Python and the default Docker setup use `http://127.0.0.1:25265` on the computer running them. Read the recovery key on the server to create your local owner profile. Keep the key privately for password recovery. Use your username and password for normal sign-in. No online account is required.
 
 Follow [Your first library](FIRST-STEPS.md) for a short walkthrough from adding one item through restoring a backup. Expect several minutes for the initial reference-database setup on slower storage. If setup fails, keep the extracted package and use the diagnostic command in your platform guide; do not delete an existing data directory to retry.
 

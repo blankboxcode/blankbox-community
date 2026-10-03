@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { Check, Plus, Search, Settings2, X } from 'lucide-react';
+import { CollectorEditionFields } from '@/components/collector-edition-fields';
+import { useState, type ReactNode } from 'react';
+import { Check, Plus, Settings2, X } from 'lucide-react';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PhysicalFormatPicker } from '@/components/physical-format-picker';
@@ -10,12 +11,14 @@ import { kindNames } from '@/lib/media';
 import {
   physicalDetailFields,
   physicalDraftForFormat,
-  physicalDraftForKind,
+  physicalDraftForMediaKind,
+  physicalPreferenceKinds,
   physicalFormats,
   physicalKindOptions,
   physicalFormatLabel,
   type PhysicalDraft,
   type PhysicalFormat,
+  type PhysicalFormatDefaults,
 } from '@/lib/physical-media';
 
 type Props = {
@@ -25,14 +28,14 @@ type Props = {
   formats: PhysicalFormat[];
   locations: string[];
   gamePlatforms: string[];
-  manual: boolean;
+  defaults: PhysicalFormatDefaults;
+  children: ReactNode;
   onOpenChange: (open: boolean) => void;
   onChange: (draft: PhysicalDraft) => void;
   onSaveLocation: (location: string) => Promise<boolean>;
   onSaveFormats: (formats: PhysicalFormat[]) => Promise<boolean>;
   onSavePlatforms: (platforms: string[]) => Promise<boolean>;
-  onFindMatch: () => void;
-  onManual: () => void;
+  onSaveDefault: (kind: PhysicalDraft['kind'], format: PhysicalFormat) => Promise<boolean>;
   onContinue: () => void;
 };
 
@@ -41,13 +44,14 @@ const updateField = (draft: PhysicalDraft, field: keyof PhysicalDraft, value: st
   [field]: value,
 });
 
-export function AddPhysicalDialog({ open, busy, draft, formats, locations, gamePlatforms, manual, onOpenChange, onChange, onSaveLocation, onSaveFormats, onSavePlatforms, onFindMatch, onManual, onContinue }: Props) {
+export function AddPhysicalDialog({ open, busy, draft, formats, locations, gamePlatforms, defaults, children, onOpenChange, onChange, onSaveLocation, onSaveFormats, onSavePlatforms, onSaveDefault, onContinue }: Props) {
   const [editingFormats, setEditingFormats] = useState(false);
   const [formatDraft, setFormatDraft] = useState<PhysicalFormat[]>(formats);
   const [editingPlatforms, setEditingPlatforms] = useState(false);
   const [platformDraft, setPlatformDraft] = useState<string[]>(gamePlatforms);
-  const kindOptions = physicalKindOptions(draft.format);
-  const displayKind = kindOptions.includes(draft.kind) ? draft.kind : kindOptions[0];
+  const kindOptions = [...new Set([...physicalPreferenceKinds, ...physicalKindOptions(draft.format)])].filter(kind => formats.some(format => physicalKindOptions(format).includes(kind)));
+  const formatKinds = physicalKindOptions(draft.format);
+  const displayKind = formatKinds.includes(draft.kind) ? draft.kind : formatKinds[0];
   const details = physicalDetailFields({ ...draft, kind: displayKind });
   const needsPlatform = draft.format === 'Game' || draft.kind === 'game';
   const savedLocation = !!draft.location.trim() && locations.some((location) => location.toLocaleLowerCase() === draft.location.trim().toLocaleLowerCase());
@@ -84,41 +88,30 @@ export function AddPhysicalDialog({ open, busy, draft, formats, locations, gameP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="form-dialog physical-dialog" showCloseButton={false}>
+      <DialogContent className="form-dialog physical-dialog physical-intake-unified" showCloseButton={false}>
         <DialogHeader className="intake-dialog-header">
           <DialogTitle>Add a physical item</DialogTitle>
-          <DialogDescription>Catalog the object you own, its edition, and where it lives.</DialogDescription>
+          <DialogDescription>Enter your copy’s details, find a title if you want, then add it here. Nothing is saved until you confirm.</DialogDescription>
           <DialogClose className="intake-dialog-close" disabled={busy} aria-label="Close Add Physical Item"><X size={20}/></DialogClose>
         </DialogHeader>
-        <form onSubmit={(event) => { event.preventDefault(); if (!busy) { if (manual) onContinue(); else onFindMatch(); } }}>
+        <div className="physical-intake-layout"><form id="physical-item-details" onSubmit={(event) => { event.preventDefault(); if (!busy) onContinue(); }}>
           <fieldset disabled={busy} className="physical-intake-form">
           <label className="field">
             <span>Title</span>
-            <input required maxLength={250} value={draft.title} onChange={(event) => onChange(updateField(draft, 'title', event.target.value))} placeholder="What are you adding?" />
+            <input aria-label="Physical item title" required maxLength={250} value={draft.title} onChange={(event) => onChange(updateField(draft, 'title', event.target.value))} placeholder="What are you adding?" />
           </label>
-          <label className="field physical-location-field">
-            <span>Physical location <small>optional</small></span>
-            <input list="blank-box-intake-location-options" maxLength={250} value={draft.location} onChange={(event) => onChange(updateField(draft, 'location', event.target.value))} placeholder="Living room, shelf 2" />
-            {!!draft.location.trim() && <button type="button" className="physical-save-value" disabled={busy || savedLocation} onClick={() => void onSaveLocation(draft.location.trim())}>{savedLocation?<><Check size={14}/>Saved location</>:<><Plus size={14}/>Save this location</>}</button>}
-          </label>
-          <div className="physical-intake-choices" role="group" aria-label="How to add this item">
-            <button className="subtle-button" type={manual ? 'button' : 'submit'} disabled={busy || !draft.title.trim()} onClick={manual ? onFindMatch : undefined}><Search size={17}/>Find Match</button>
-            <button className={manual ? 'subtle-button selected' : 'subtle-button'} type="button" disabled={busy} aria-expanded={manual} aria-controls="physical-manual-fields" onClick={onManual}><Plus size={17}/>Manually Add</button>
-          </div>
-          {!manual && <p className="muted small">Find a title in your library or downloaded Blank Box database, or enter the item’s details yourself. Nothing is added until you confirm.</p>}
-          {manual && <section id="physical-manual-fields" className="physical-intake-fields" aria-label="Manual item details">
           <div className="form-grid">
             <label className="field">
               <span>Format</span>
               <Select value={draft.format} onValueChange={changeFormat}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label="Format"><SelectValue /></SelectTrigger>
                 <SelectContent>{(formats.length ? formats : physicalFormats).map((format) => <SelectItem key={format} value={format}>{physicalFormatLabel(format)}</SelectItem>)}<SelectSeparator/><SelectItem value="__quick_edit__"><Settings2 size={14}/>Quick edit viewable formats</SelectItem></SelectContent>
               </Select>
             </label>
-            {draft.format === 'Game' ? platformField : kindOptions.length > 1 ? <label className="field">
+            {kindOptions.length > 1 ? <label className="field">
               <span>Media type</span>
-              <Select key={draft.format} value={displayKind} onValueChange={(value) => onChange(physicalDraftForKind(draft, value as PhysicalDraft['kind']))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select key={draft.format} value={displayKind} onValueChange={(value) => onChange(physicalDraftForMediaKind(draft, value as PhysicalDraft['kind'], formats, defaults))}>
+                <SelectTrigger aria-label="Media type"><SelectValue /></SelectTrigger>
                 <SelectContent>{kindOptions.map((kind) => <SelectItem key={kind} value={kind}>{kindNames[kind]}</SelectItem>)}</SelectContent>
               </Select>
             </label> : <div className="field">
@@ -126,7 +119,13 @@ export function AddPhysicalDialog({ open, busy, draft, formats, locations, gameP
               <div className="physical-fixed-kind">{kindNames[displayKind]}</div>
             </div>}
           </div>
-          {needsPlatform && draft.format !== 'Game' && platformField}
+          <button type="button" className="text-button physical-default-save" disabled={busy || defaults[displayKind] === draft.format} onClick={() => void onSaveDefault(displayKind, draft.format)}>{defaults[displayKind] === draft.format ? `Default format for ${kindNames[displayKind]}` : `Save ${physicalFormatLabel(draft.format)} as my ${kindNames[displayKind]} default`}</button>
+          <label className="field physical-location-field">
+            <span>Physical location <small>optional</small></span>
+            <input list="blank-box-intake-location-options" maxLength={250} value={draft.location} onChange={(event) => onChange(updateField(draft, 'location', event.target.value))} placeholder="Living room, shelf 2" />
+            {!!draft.location.trim() && <button type="button" className="physical-save-value" disabled={busy || savedLocation} onClick={() => void onSaveLocation(draft.location.trim())}>{savedLocation?<><Check size={14}/>Saved location</>:<><Plus size={14}/>Save this location</>}</button>}
+          </label>
+          {needsPlatform && platformField}
           {editingFormats && <section className="physical-quick-formats">
             <div><strong>Formats shown in this menu</strong><small>Choose what your household uses. You can still manage the full list in Settings.</small></div>
             <PhysicalFormatPicker compact value={formatDraft} onChange={setFormatDraft}/>
@@ -147,12 +146,14 @@ export function AddPhysicalDialog({ open, busy, draft, formats, locations, gameP
               <input maxLength={120} value={draft.edition} onChange={(event) => onChange(updateField(draft, 'edition', event.target.value))} placeholder="Collector’s edition" />
             </label>
           </div>
+          <CollectorEditionFields packaging={draft.packaging} releaseLabel={draft.releaseLabel} onChange={(key,value)=>onChange(updateField(draft,key,value))}/>
           {displayKind === 'tv' && <label className="field"><span>TV season <small>optional</small></span><select value={draft.season} onChange={(event) => onChange(updateField(draft, 'season', event.target.value))}><option value="">Unknown season</option><option value="complete-series">Complete series</option><option value="specials">Specials</option>{Array.from({length: 99}, (_, index) => <option key={index + 1} value={String(index + 1)}>Season {index + 1}</option>)}</select></label>}
-          <div className="form-grid">
             <label className="field">
               <span>Barcode <small>optional</small></span>
               <input maxLength={80} inputMode="numeric" value={draft.barcode} onChange={(event) => onChange(updateField(draft, 'barcode', event.target.value))} placeholder="UPC or ISBN" />
             </label>
+          <details className="physical-optional-details"><summary>More copy details</summary><div className="physical-intake-fields">
+          <div className="form-grid">
             <label className="field">
               <span>Condition <small>optional</small></span>
               <input maxLength={120} value={draft.condition} onChange={(event) => onChange(updateField(draft, 'condition', event.target.value))} placeholder="Like new" />
@@ -178,12 +179,11 @@ export function AddPhysicalDialog({ open, busy, draft, formats, locations, gameP
           </div>
           <label className="field"><span>Genre <small>optional</small></span><input maxLength={500} value={draft.genre} onChange={(event) => onChange(updateField(draft, 'genre', event.target.value))}/></label>
           <label className="field"><span>Description <small>optional</small></span><textarea rows={4} maxLength={5000} value={draft.description} onChange={(event) => onChange(updateField(draft, 'description', event.target.value))}/></label>
-          <p className="muted small">Review the item and any possible duplicates before adding it. Older formats may require compatible playback hardware.</p>
-          <button className="primary-button" type="submit" disabled={busy || !draft.title.trim() || needsPlatform && (!draft.platform.trim() || draft.platform === '__custom__')}><Check size={17} />Review and add item</button>
-          </section>}
+          </div></details>
+          <p className="muted small">Set starting formats and title search in Settings → Collection → Physical Media preferences.</p>
           <datalist id="blank-box-intake-location-options">{locations.map((location) => <option key={location} value={location}/>)}</datalist>
           </fieldset>
-        </form>
+        </form><section className="physical-intake-matches" aria-label="Title matching and confirmation">{children}</section></div>
       </DialogContent>
     </Dialog>
   );

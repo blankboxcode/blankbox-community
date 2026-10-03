@@ -6,6 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile
     image: ${BLANKBOX_IMAGE:-blankbox-community:local}
+    user: "${BLANKBOX_UID:-1000}:${BLANKBOX_GID:-1000}"
     restart: unless-stopped
     init: true
     ports:
@@ -14,6 +15,7 @@ services:
       BLANKBOX_DATA: /data
       BLANKBOX_HOST: 0.0.0.0
       BLANKBOX_PORT: "25265"
+      BLANKBOX_OIDC: ${BLANKBOX_OIDC:-}
       # To read bind-mounted imports, set a JSON array such as:
       # BLANKBOX_SOURCES: '["/imports/movies", "/imports/photos"]'
       # BLANKBOX_BACKUP: /backup

@@ -12,6 +12,7 @@
   <a href="#download">Download</a> ·
   <a href="#install-from-a-zip">ZIP installation</a> ·
   <a href="#quick-start-with-docker">Docker quick start</a> ·
+  <a href="#update-an-existing-installation">Update</a> ·
   <a href="https://github.com/blankboxcode/blankbox-community/wiki">Wiki</a> ·
   <a href="https://github.com/blankboxcode/blankbox-community/issues/new/choose">Feedback &amp; help</a>
 </p>
@@ -20,11 +21,12 @@
 
 We built Blank Box Community to bring physical collections, files on your own drives and optional Plex/Jellyfin catalogs together. Keep track of what you own, where it lives and how you can enjoy it, with a catalog that runs on your computer and works offline.
 
-- **Organize physical media:** record copies, editions and locations; build collections and track what you intend to buy.
+- **Organize physical media:** record copies, editions, packaging, release labels and locations; save front/back artwork and build collections.
 - **Connect your files:** index mounted drives and link files in place without copying or renaming originals.
 - **Look up titles offline:** four included optional signed metapacks help with reference facts and organization. They contain no media or cover art.
 - **Enjoy compatible media:** play browser-compatible files, read supported EPUB/CBZ documents, or open connected Plex/Jellyfin sources in their own service.
-- **Keep your library yours:** save corrections and artwork, export your catalog and create checked recovery points for records and managed copies.
+- **See every way to enjoy a title:** browse editions and artwork, choose playable sources, search your own streaming services, and record digital purchases or redeemed codes.
+- **Keep your library yours:** save corrections, export your catalog and create checked recovery points for records and managed copies.
 
 No Blank Box online account, subscription or connected media server is required. Browser codec and format limits apply; transcoding and protected video-disc copying are not included.
 
@@ -34,17 +36,19 @@ Choose the installation package for your computer. Each ZIP includes the applica
 
 | Your installation | Download | Instructions |
 | --- | --- | --- |
-| Linux with systemd | [Linux / Docker ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v0.1.0-beta.9/blankbox-community-0.1.0-beta.9.zip) | [Linux ZIP install](#linux) |
-| Docker on Linux | The same [Linux / Docker ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v0.1.0-beta.9/blankbox-community-0.1.0-beta.9.zip) | [Docker quick start](#quick-start-with-docker) |
+| Linux with systemd | [Linux / Docker ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v0.1.0-beta.10/blankbox-community-0.1.0-beta.10.zip) | [Linux ZIP install](#linux) |
+| Docker on Linux | The same [Linux / Docker ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v0.1.0-beta.10/blankbox-community-0.1.0-beta.10.zip) | [Docker quick start](#quick-start-with-docker) |
 | Windows 10/11 x64 — **experimental** | [Windows x64 ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v0.1.0-beta.8/blankbox-community-0.1.0-beta.8-windows-x64.zip) | [Windows ZIP install](#windows-experimental) |
 
 **Installation ZIPs include the prebuilt interface: you do not need Node.js, npm or a source build.** Windows includes its own Python runtime; native Linux needs Python 3.10+.
 
-[Linux / Docker release files and checksums](https://github.com/blankboxcode/blankbox-community/releases/tag/v0.1.0-beta.9) · [Verify your download](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.9/UPDATES.md#trust) · [Platform status](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.9/PLATFORMS.md)
+[Linux / Docker release files and checksums](https://github.com/blankboxcode/blankbox-community/releases/tag/v0.1.0-beta.10) · [Verify your download](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.10/UPDATES.md#trust) · [Platform status](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.10/PLATFORMS.md)
 
 Verify the package before running setup. A checksum detects changed bytes; first-download publisher trust needs independent confirmation of the signing-key fingerprint. The verification guide explains the trusted verifier.
 
-These quick starts create a **fresh library**. For an existing library, follow [Updates](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.9/UPDATES.md) or [Recovery](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.9/RECOVERY.md). GitHub's automatic source archives and the source ZIP are developer downloads, not the guided installation package.
+The Windows download remains beta.8/schema 20 and does not include this Linux/Docker feature update.
+
+These quick starts create a **fresh library**. For an existing library, follow [the update steps below](#update-an-existing-installation), [Updates](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.10/UPDATES.md) or [Recovery](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.10/RECOVERY.md). GitHub's automatic source archives and the source ZIP are developer downloads, not the guided installation package.
 
 ## Install from a ZIP
 
@@ -68,7 +72,7 @@ Requires a Debian/Ubuntu-class computer with **Python 3.10+ and systemd**.
 | **2 — Trusted home network by IP** | On the server or another trusted home-network device: `http://SERVER-IP:25265`. |
 | **3 — The same network plus blankbox.local** | The same access as option 2, plus `http://blankbox.local:25265` where discovery works. The IP address still works. |
 
-Replace `SERVER-IP` with the server's local address from its network settings or your router's device list. Use your chosen port in every address. Option 3 needs optional Avahi discovery packages **before** running setup; see the [Linux guide](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.9/guides/LINUX.md).
+Replace `SERVER-IP` with the server's local address from its network settings or your router's device list. Use your chosen port in every address. Option 3 needs optional Avahi discovery packages **before** running setup; see the [Linux guide](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.10/guides/LINUX.md).
 
 Read the recovery key privately on the server:
 
@@ -124,7 +128,7 @@ BLANKBOX_PUBLISHED_PORT=25265
 
 Run `docker compose up --detach --wait --wait-timeout 240` to apply the change, then open `http://SERVER-IP:25265` on the other device. Use the host's local IP and your selected port. This does not set up outside-home access, a friendly name or HTTPS.
 
-Your library persists in the `blankbox_blankbox-data` named volume. `docker compose down` retains it; omit `--volumes` when keeping the library. Follow the [Docker guide](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.9/guides/DOCKER.md) to add read-only source mounts, a writable backup mount, or your own UID/GID and data bind folder. Our default UID/GID is `10001:10001`. This empty-library quick start does not mount your drives or configure backups automatically.
+Your library persists in the `blankbox_blankbox-data` named volume. `docker compose down` retains it; omit `--volumes` when keeping the library. Follow the [Docker guide](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.10/guides/DOCKER.md) to add read-only source mounts, a writable backup mount, or your own UID/GID and data bind folder. Our new-install default UID/GID is `1000:1000`; updates retain the existing installation's IDs. This empty-library quick start does not mount your drives or configure backups automatically.
 
 ## Make it your library
 
@@ -137,17 +141,44 @@ Start with a shelf, a folder or a connected catalog, then bring the rest of your
 | Bring in Plex or Jellyfin | Connect your existing server and sync its catalog. Keep its source alongside physical copies and local files for the same title. |
 | Organize shelves and collections | Save custom groups or collections based on genre, format and other rules; record favorites and local activity. |
 | Read, listen or watch | Choose an available source from a title. Use the built-in player or reader for supported files, a connected service, or a compatible external app. |
-| Add and correct details | Review optional offline references or connected metadata, save your own corrections, and choose or upload cover art. |
+| Add and correct details | Open an item popup, choose details or artwork beside the cover, and edit a selected physical copy directly. Save title/edition artwork, packaging and release labels. |
+| Save entry preferences | Choose starting formats by media type and a default title-search source in Settings → Collection → Physical Media preferences. |
+| Record digital ownership | Add purchased, redeemed or code-included platform records separately from playback and streaming searches. |
 
 A title, an edition and a copy describe different parts of your collection. A digital file or connected source gives access to a title; it does not automatically record an owned physical copy. Review possible matches before combining records.
 
 [Getting started](https://github.com/blankboxcode/blankbox-community/wiki/Getting-Started) · [Using your library](https://github.com/blankboxcode/blankbox-community/wiki/Using-Your-Library) · [Organizing collections](https://github.com/blankboxcode/blankbox-community/wiki/Organizing-Collections) · [Offline metapacks](https://github.com/blankboxcode/blankbox-community/wiki/Offline-Metapacks)
 
-## Protect and update your library
+Learn how to manage [packaging, artwork and digital copies](guides/COLLECTOR-DETAILS.md), or set up [sign-in, optional OIDC and password recovery](guides/ACCOUNTS.md). Blank Box currently uses one shared household account.
+
+## Update an existing installation
+
+Download and extract the new **Linux / Docker installation ZIP** into a separate folder. Create a complete recovery point first and verify the package with your installed trusted verifier. Keep the same library location and your existing settings.
+
+**Native Linux:** open a terminal in the new extracted folder and run:
+
+```sh
+python3 /opt/blankbox/current/release_files.py . --trusted-key /opt/blankbox/current/release-trust.json
+sudo ./install-linux.sh
+```
+
+This keeps your account, library, port, access mode, sources and backup configuration.
+
+**Docker:** copy your existing `.env` and any local Compose overrides into the new folder. Keep the same project name, image setting, UID/GID and volume or bind folder, then run:
+
+```sh
+./upgrade-docker.sh
+```
+
+The helper keeps existing numeric IDs, including `10001:10001`; it does not move data or change ownership. Relative bind paths must still resolve to the same existing folders.
+
+Open your usual address, sign in and refresh the browser. Check your items, artwork and sources. This update migrates beta.8/beta.9 catalogs from **schema 20 to 22**. Keep the previous application and paired snapshot; returning to older code requires that earlier catalog state. [Full update and rollback guide](UPDATES.md)
+
+## Protect your library
 
 Use a separate backup drive and test a restore into a **new empty destination**. Library recovery protects saved records, managed copies and paired offline-pack assets. It **cannot recreate missing linked source-drive originals**; protect those bytes separately. Portable restore excludes account/provider secrets, so reconnect Plex/Jellyfin afterward.
 
-Core and metapacks update independently and optionally. Keep earlier software and paired recovery material for rollback. [Recovery](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.9/RECOVERY.md) · [Updates](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.9/UPDATES.md)
+Core and metapacks update independently and optionally. Keep earlier software and paired recovery material for rollback. [Recovery](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.10/RECOVERY.md) · [Updates](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.10/UPDATES.md)
 
 ## Feedback and support
 
@@ -174,3 +205,4 @@ python3 box/server.py --data /path/to/new-blankbox-data --port 25265
 The Core has no required third-party Python packages. To include the distributed starter packs in a source build, copy the signed `bundled-metadata` directory from the matching installation package into `box/` before first start.
 
 </details>
+

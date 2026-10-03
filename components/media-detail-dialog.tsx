@@ -1,87 +1,97 @@
 'use client';
 /* eslint-disable @next/next/no-img-element -- Artwork can come from private local services that Next image optimization cannot access. */
 
-import { BookOpen, Check, Disc3, Film, FolderOpen, Gamepad2, HardDrive, Heart, Images, Music2, Pencil, RefreshCw, Search, Server, ShieldCheck, Trash2, X } from 'lucide-react';
+import { ArrowUpRight, Check, Disc3, Globe2, Heart, Images, Info, MapPin, Pencil, RefreshCw, Search, ShieldCheck, Ticket, Trash2, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { MediaActionIcon } from '@/components/media-action-icon';
+import { MediaKindIcon, mediaKindLabels } from '@/components/media-kind-icon';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { FindAnotherCopy } from '@/components/find-another-copy';
 import { MediaCatalogDetails } from '@/components/media-catalog-details';
 import { KnownEditions } from '@/components/known-editions';
 import { CatalogIdentitySummary } from '@/components/catalog-identity-summary';
+import { safeServiceUrl } from '@/lib/streaming-services';
 import { StreamingSearchLinks } from '@/components/where-to-find';
 import { VersionsAndEditions } from '@/components/versions-and-editions';
 import { ItemActivityPanel } from '@/components/item-activity';
 import { ExternalDiscPlayback } from '@/components/external-disc-playback';
-import { MediaFileSections } from '@/components/media-file-sections';
 import { TvSeriesOrganizer } from '@/components/tv-series-organizer';
 import { formatsByKind } from '@/lib/collecting-formats';
-import { mediaFileGroups, mediaLength, mediaTrackCount, kindNames, preferredPlaybackSource, sourceSummaryCount, type MediaItem, type MediaSource, type StreamingService } from '@/lib/media';
+import { mediaLength, mediaTrackCount, preferredPlaybackSource, type MediaItem, type MediaSource, type StreamingService, type ServiceLink } from '@/lib/media';
 
-type Props={onActivityChange:()=>void;item:MediaItem;opticalDrive?:string;streamingServices:StreamingService[];retailEnabled:boolean;metadataEnabled:boolean;busy:boolean;playable:boolean;playLabel:string;refreshable:boolean;onClose:()=>void;onPlay:()=>void;onPlaySource:(source:MediaSource)=>void;onRemoveSource:(source:MediaSource)=>void;onRefresh:()=>void;onFavorite:()=>void;onEdit:()=>void;onRemove:()=>Promise<boolean>};
-type DetailView='overview'|'sources'|'find';
+type Props={serviceLinks?:ServiceLink[];onActivityChange:()=>void;item:MediaItem;opticalDrive?:string;streamingServices:StreamingService[];retailEnabled:boolean;metadataEnabled:boolean;busy:boolean;playable:boolean;playLabel:string;refreshable:boolean;onClose:()=>void;onPlay:()=>void;onPlaySource:(source:MediaSource)=>void;onRemoveSource:(source:MediaSource)=>void;onRefresh:()=>void;onFavorite:()=>void;onEdit:()=>void;onRemove:()=>Promise<boolean>};
 
-function ItemArtwork({item}:{item:MediaItem}){
- const Icon=item.kind==='movie'||item.kind==='tv'?Film:item.kind==='music'?Music2:item.kind==='book'||item.kind==='comic'?BookOpen:item.kind==='game'?Gamepad2:item.kind==='photo'||item.kind==='home-video'?Images:FolderOpen;
- return item.poster?<img className="item-detail-art" src={item.poster} alt=""/>:<div className={`item-detail-art item-detail-art-empty kind-${item.kind}`}><Icon size={46} strokeWidth={1.3}/><span>{kindNames[item.kind].replace(/s$/,'')}</span></div>;
+function ItemArtwork({item}:{item:MediaItem}) {
+ const [selectedId,setSelectedId]=useState('cover');
+ const gallery=item.artworkGallery||[];
+ const selected=gallery.find(image=>image.id===selectedId)||(!item.poster?gallery.find(image=>image.primary)||gallery[0]:undefined);
+ const url=selected?.url||item.poster;
+ const label=selected?.label||`${item.title} cover`;
+ const edition=selected?.releaseId?item.sources.find(source=>source.physicalReleaseId===selected.releaseId):undefined;
+ const thumbnails=[...(item.poster?[{id:'cover',url:item.poster,label:'Main cover'}]:[]),...gallery.filter(image=>image.url!==item.poster)];
+ return <aside className={`item-artwork-panel kind-${item.kind}`} aria-label="Item artwork">
+  {url?<a className="item-artwork-main" href={url} target="_blank" rel="noopener noreferrer" aria-label={`View full artwork: ${label}`}><img src={url} alt={label}/><span><Images size={15}/>View full artwork<ArrowUpRight size={14}/></span></a>:<div className="item-artwork-placeholder"><MediaKindIcon kind={item.kind} size={64} strokeWidth={1.2}/><span>{mediaKindLabels[item.kind]}</span></div>}
+  {thumbnails.length>1&&<div className="item-artwork-thumbnails" role="group" aria-label="Choose artwork">{thumbnails.map(image=><button type="button" key={image.id} className={(selected?.id||selectedId)===image.id?'selected':''} aria-label={`Show ${image.label}`} title={image.label} aria-pressed={(selected?.id||selectedId)===image.id} onClick={()=>setSelectedId(image.id)}><img src={image.url} alt="" loading="lazy"/></button>)}</div>}
+  {selected&&<div className="item-artwork-caption" aria-live="polite"><strong>{selected.label}</strong><span>{selected.role}{selected.primary?' · Main cover':''}</span>{edition&&<small>{[edition.edition,edition.packaging,edition.releaseLabel].filter(Boolean).join(' · ')||edition.label}</small>}</div>}
+  {!url&&!item.sample&&<p className="item-artwork-note">Add a cover or edition artwork in Edit details.</p>}
+ </aside>;
 }
 
-export function MediaDetailDialog({item,onActivityChange,opticalDrive,streamingServices,retailEnabled,metadataEnabled,busy,playable,playLabel,refreshable,onClose,onPlay,onPlaySource,onRemoveSource,onRefresh,onFavorite,onEdit,onRemove}:Props){
- const[view,setView]=useState<DetailView>('overview');
- const[findFormat,setFindFormat]=useState('Any');
- const[descriptionOpen,setDescriptionOpen]=useState(false);
- const[overviewExpanded,setOverviewExpanded]=useState(false);
- const overviewPanel=useRef<HTMLDivElement>(null);
+export function MediaDetailDialog({serviceLinks,item,onActivityChange,opticalDrive,streamingServices,retailEnabled,metadataEnabled,busy,playable,playLabel,refreshable,onClose,onPlay,onPlaySource,onRemoveSource,onRefresh,onFavorite,onEdit,onRemove}:Props) {
+ const [findFormat,setFindFormat]=useState('Any');
+ const [descriptionOpen,setDescriptionOpen]=useState(false);
+ const sourcesPanel=useRef<HTMLElement>(null);
+ const aboutPanel=useRef<HTMLDivElement>(null);
+ const findPanel=useRef<HTMLElement>(null);
  const physical=item.sources.filter(source=>source.type==='physical');
  const local=item.sources.filter(source=>source.type==='local');
- const linked=item.sources.filter(source=>source.type==='digital'||source.type==='catalog');
- const linkedFiles=linked.filter(source=>source.type==='digital');
- const linkedGroups=mediaFileGroups({...item,sources:linkedFiles});
- const fileUnit=item.kind==='tv'?'episodes':item.kind==='music'?'tracks':item.kind==='book'?'book files':'files';
- const connected=item.sources.filter(source=>['jellyfin','plex','emby'].includes(source.type));
+ const linkedFiles=item.sources.filter(source=>source.type==='digital');
  const preferred=preferredPlaybackSource(item);
- const reading=item.kind==='book'||item.kind==='comic';
- const opening=item.kind==='file'||item.kind==='game';
- const noSource=reading?'No reading source on this item':opening?'No file available to open':item.kind==='photo'?'No photo available to view':'No playable source on this item';
- const formatCopies=new Map<string,Set<string>>();
- physical.forEach((source,index)=>{const copies=formatCopies.get(source.label)||new Set<string>();copies.add(source.ownedCopyId||source.id||String(index));formatCopies.set(source.label,copies);});
- const formats=[...formatCopies].map(([format,copies])=>[format,copies.size] as const);
  const ownedCopyCount=new Set(physical.map((source,index)=>source.ownedCopyId||source.id||String(index))).size;
+ const physicalFormats=[...new Set(physical.map(source=>source.label))];
+ const locations=[...new Set(physical.map(source=>source.location).filter(Boolean))];
  const applicableStreamingServices=item.kind==='movie'||item.kind==='tv'?streamingServices.filter(service=>service!=='spotify'):item.kind==='music'?streamingServices.filter(service=>service==='spotify'||service==='youtube'):[];
+ const applicableServiceLinks=serviceLinks?.filter(service=>item.kind==='movie'||item.kind==='tv'?service.id!=='spotify':item.kind==='music'?(service.id==='spotify'||service.id==='youtube'||service.id.startsWith('custom-')):false);
  const hasStoreSearch=retailEnabled&&!!formatsByKind[item.kind];
- const canFind=!item.sample&&(hasStoreSearch||applicableStreamingServices.length>0);
+ const canFind=!item.sample&&(hasStoreSearch||(applicableServiceLinks?.length??applicableStreamingServices.length)>0);
  const description=item.description||'';
  const connectedOnly=item.sources.length>0&&item.sources.every(source=>['jellyfin','plex'].includes(source.type));
+ const sourceHeading=item.kind==='book'||item.kind==='comic'?'Sources & reading':item.kind==='file'||item.kind==='game'||item.kind==='photo'?'Sources & access':'Sources & playback';
+ const jumpTo=(panel:HTMLElement|null)=>{panel?.scrollIntoView({block:'start',behavior:'auto'});panel?.focus({preventScroll:true});};
+ const showFind=(format='Any')=>{setFindFormat(format);jumpTo(findPanel.current);};
  const remove=async()=>{
   const managed=local.length>0,mixed=item.sources.length>1;
   const message=managed?'Remove this item and its Blank Box-managed copy? The original source file will not be changed. Verified backups may still retain a copy.':connectedOnly?'Hide this item from Blank Box? It will stay hidden after future provider syncs and can be restored from Settings. The connected service and its files will not be changed.':mixed?'Remove this entire catalog item and all of its Blank Box source links? Connected services, original files, and physical media will not be changed.':'Remove this catalog record from Blank Box? The connected service or physical media will not be changed.';
   if(window.confirm(message)&&await onRemove())onClose();
  };
- const showFind=(format='Any')=>{setFindFormat(format);setView('find');};
- return <Dialog open onOpenChange={open=>!open&&onClose()}><DialogContent className={`detail-dialog item-detail-dialog ${view!=='overview'||overviewExpanded?'item-detail-dialog-expanded':''}`} showCloseButton={false}>
-  <div className="item-detail-hero">
+ return <Dialog open onOpenChange={open=>!open&&onClose()}><DialogContent className="detail-dialog item-detail-dialog item-detail-polished" showCloseButton={false}>
+  <div className="item-detail-toolbar"><span><MediaKindIcon kind={item.kind} size={17}/>{mediaKindLabels[item.kind]} details{item.sample&&<small>Sample</small>}</span><nav aria-label="Jump to item section"><button type="button" onClick={()=>jumpTo(sourcesPanel.current)}>Sources</button><button type="button" onClick={()=>jumpTo(aboutPanel.current)}>Details</button>{canFind&&<button type="button" onClick={()=>showFind()}>Find more</button>}</nav><button className="item-detail-close" type="button" aria-label="Close item details" title="Close" onClick={onClose}><X size={20}/></button></div>
+  <div className="item-detail-body"><div className="item-detail-layout">
    <ItemArtwork item={item}/>
-   <div className="item-detail-intro"><span className="item-detail-kind">{kindNames[item.kind]}{item.sample?' · Sample':''}</span><DialogHeader><DialogTitle>{item.title}</DialogTitle><DialogDescription>{[item.artist,item.catalogDetails?.contentRating,mediaTrackCount(item)?`${mediaTrackCount(item)} tracks`:null,item.year,item.genre,mediaLength(item)||null].filter(Boolean).join(' · ')}</DialogDescription></DialogHeader>
-    {description&&<p id="item-description" tabIndex={descriptionOpen?0:undefined} aria-label="Item description" className={`item-detail-description ${!descriptionOpen?'clamped':''}`}>{description}</p>}
-    {description.length>175&&<button className="item-detail-read-more" type="button" aria-expanded={descriptionOpen} aria-controls="item-description" onClick={()=>setDescriptionOpen(!descriptionOpen)}>{descriptionOpen?'Show less':'Read description'}</button>}
-    <div className="item-detail-actions">{playable?<button className="primary-button" type="button" onClick={onPlay}><MediaActionIcon item={item} source={preferred} size={16}/>{playLabel}</button>:canFind&&<button className="primary-button" type="button" onClick={()=>showFind()}><Search size={16}/>Search for More</button>}{!item.sample&&<button className="subtle-button" type="button" onClick={onEdit}><Pencil size={16}/>Edit details</button>}<button className={`item-detail-favorite ${item.favorite?'selected':''}`} type="button" aria-label={item.favorite?'Remove from favorites':'Add to favorites'} aria-pressed={!!item.favorite} title={item.favorite?'Remove from favorites':'Add to favorites'} onClick={onFavorite}><Heart size={19} fill={item.favorite?'currentColor':'none'}/></button></div>
+   <div className="item-detail-content">
+    <header className="item-detail-intro"><span className={`item-detail-kind kind-${item.kind}`}><MediaKindIcon kind={item.kind} size={15}/>{mediaKindLabels[item.kind]}</span><DialogHeader><DialogTitle>{item.title}</DialogTitle><DialogDescription>{[item.artist,item.year,item.catalogDetails?.contentRating,mediaLength(item)||null,mediaTrackCount(item)?`${mediaTrackCount(item)} tracks`:null].filter(Boolean).join(' · ')||'Your Blank Box library'}</DialogDescription></DialogHeader>
+     {item.genre&&<p className="item-detail-genre">{item.genre}</p>}
+     <div className="item-detail-actions">{playable&&<button className="primary-button" type="button" onClick={onPlay}><MediaActionIcon item={item} source={preferred} size={17}/>{playLabel}</button>}{!item.sample&&<button className="subtle-button" type="button" onClick={onEdit}><Pencil size={15}/>Edit details</button>}<button className={`item-detail-favorite ${item.favorite?'selected':''}`} type="button" aria-label={item.favorite?'Remove from favorites':'Add to favorites'} aria-pressed={!!item.favorite} title={item.favorite?'Remove from favorites':'Add to favorites'} onClick={onFavorite}><Heart size={19} fill={item.favorite?'currentColor':'none'}/></button></div>
+     {description&&<div className="item-detail-synopsis"><p id="item-description" className={`item-detail-description ${!descriptionOpen?'clamped':''}`}>{description}</p>{description.length>220&&<button className="item-detail-read-more" type="button" aria-expanded={descriptionOpen} aria-controls="item-description" onClick={()=>setDescriptionOpen(!descriptionOpen)}>{descriptionOpen?'Show less':'Read more'}</button>}</div>}
+     {!item.sample&&ownedCopyCount>0&&<div className="item-collection-summary"><span><Disc3 size={16}/>{ownedCopyCount} physical {ownedCopyCount===1?'copy':'copies'}</span><span>{physicalFormats.join(' · ')}</span>{locations.length>0&&<span><MapPin size={14}/>{locations.slice(0,2).join(' · ')}{locations.length>2?` +${locations.length-2}`:''}</span>}</div>}
+    </header>
+    <section ref={sourcesPanel} tabIndex={-1} className="item-detail-sources item-detail-block" aria-label={sourceHeading}>
+     <div className="item-detail-section-heading"><div><h3><MediaActionIcon item={item} source={preferred} size={19}/>{sourceHeading}</h3><p>{item.sample?'Preview sources for this sample.':'Open a file or connected app, or see the copies on your shelf.'}</p></div>{refreshable&&<button className="text-button" type="button" disabled={busy} onClick={onRefresh}><RefreshCw size={14}/>{busy?'Refreshing…':'Refresh'}</button>}</div>
+     <VersionsAndEditions item={item} onPlaySource={onPlaySource} onRemoveSource={onRemoveSource}/>
+     {!item.sources.length&&<div className="item-source-empty"><MediaKindIcon kind={item.kind} size={24}/><div><strong>No sources added yet</strong><p>Add a physical copy or link a file in Edit details.</p></div>{!item.sample&&<button className="subtle-button" type="button" onClick={onEdit}><Pencil size={14}/>Add a source</button>}</div>}
+     {local.length>0&&<p className={`item-source-note ${item.backup==='verified'?'verified':''}`}><ShieldCheck size={14}/>{item.backup==='verified'?'Managed-file backup verified.':'Managed-file backup has not been verified for this item.'}{item.backup==='verified'&&item.backupVerifiedAt&&<span>Checked {new Date(item.backupVerifiedAt).toLocaleDateString()}.</span>}</p>}
+     {linkedFiles.length>0&&<p className="item-source-note"><Info size={14}/>Linked files stay on their drives. Recovery restores their records, not missing originals.</p>}
+     <ExternalDiscPlayback item={item} drive={opticalDrive}/>
+    </section>
+    {!item.sample&&!!item.digitalPlatforms?.length&&<section className="item-detail-block item-digital-copies" aria-label="Digital copies and codes"><div className="item-detail-section-heading"><div><h3><Globe2 size={19}/>Digital copies & codes</h3><p>Purchases and codes you recorded for this title.</p></div></div><div className="item-digital-grid">{item.digitalPlatforms.map(record=>{const url=safeServiceUrl(record.url);const copy=physical.find(source=>source.id===record.physicalSourceId);return <article className="item-digital-card" key={record.id}><span className="item-digital-icon"><Globe2 size={19}/></span><div><strong>{record.platform}</strong><span className={`item-digital-status ${record.status}`}>{record.status==='code-included'?<Ticket size={12}/>:<Check size={12}/>}{{purchased:'Purchased',redeemed:'Redeemed','code-included':'Code included'}[record.status]}</span>{copy&&<small>{[copy.label,copy.packaging,copy.releaseLabel].filter(Boolean).join(' · ')}</small>}{record.notes&&<p>{record.notes}</p>}{url&&<a href={url} target="_blank" rel="noopener noreferrer">Open platform<ArrowUpRight size={14}/></a>}</div></article>;})}</div><p className="item-source-note">A saved purchase or code does not verify playback access. Included codes may still need redeeming.</p></section>}
+    {!item.sample&&item.kind==='tv'&&<TvSeriesOrganizer key={item.id} item={item} activityEnabled={metadataEnabled} onActivityChange={onActivityChange} onPlaySource={onPlaySource}/>}
+    <div ref={aboutPanel} tabIndex={-1} className="item-detail-block item-about-block"><MediaCatalogDetails item={item} busy={busy} showEmpty onRefresh={refreshable?onRefresh:undefined}/>{!item.sample&&metadataEnabled&&item.kind!=='tv'&&<ItemActivityPanel key={item.id} item={item} onChange={onActivityChange}/>}</div>
+    {canFind&&<section ref={findPanel} tabIndex={-1} className="item-detail-block item-detail-find" aria-label="Find more copies"><div className="item-detail-section-heading"><div><h3><Search size={19}/>Find more</h3><p>{hasStoreSearch?'Explore editions and search the services you use.':'Search the services you use for this title.'}</p></div></div>{hasStoreSearch&&<FindAnotherCopy key={`${item.id}:${findFormat}`} item={item} initialFormat={findFormat}/>}<StreamingSearchLinks item={item} streamingServices={applicableStreamingServices} serviceLinks={applicableServiceLinks}/></section>}
+    {!item.sample&&metadataEnabled&&<KnownEditions item={item} onFind={showFind}/>}
+    {!item.sample&&metadataEnabled&&<CatalogIdentitySummary item={item}/>}
+    {!item.sample&&<section className="item-detail-manage"><div><strong>{connectedOnly?'Hide this item':'Remove this item'}</strong><p>{connectedOnly?'Keep it out of Blank Box after future service syncs.':'Review the confirmation before removing its catalog record and links.'}</p></div><button className="danger-button" type="button" disabled={busy} onClick={()=>void remove()}><Trash2 size={15}/>{connectedOnly?'Hide item':'Remove item'}</button></section>}
    </div>
-  </div>
-  <div className={`item-detail-nav ${canFind?'has-find':''}`} aria-label="Item sections"><button type="button" className={view==='overview'?'active':''} aria-pressed={view==='overview'} onClick={()=>{setView('overview');setOverviewExpanded(false);overviewPanel.current?.scrollTo({top:0});}}>Overview</button><button type="button" className={view==='sources'?'active':''} aria-pressed={view==='sources'} onClick={()=>setView('sources')}>Sources <span>{sourceSummaryCount(item)}</span></button>{canFind&&<button type="button" className={view==='find'?'active':''} aria-pressed={view==='find'} onClick={()=>showFind()}>Find more</button>}<button type="button" className="item-detail-close" aria-label="Close item details" title="Close" onClick={onClose}><X size={19}/></button></div>
-  {view==='overview'&&<div ref={overviewPanel} className="item-detail-panel" onScroll={event=>{if(event.currentTarget.scrollTop>12)setOverviewExpanded(true);}} onWheel={event=>{if(event.deltaY>12)setOverviewExpanded(true);}}><div className="item-detail-section-heading"><div><h3>{item.sample?'About this sample':'What you have'}</h3><p>{item.sample?'A preview of how media appears in your library.':'Physical ownership, local files, and connected catalogs stay distinct.'}</p></div>{item.backup==='verified'&&local.length>0&&<span className="item-detail-protection" title={item.backupVerifiedAt?`Checked ${new Date(item.backupVerifiedAt).toLocaleString()}`:'Verified backup recorded'}><ShieldCheck size={15}/>Managed-file backup verified</span>}</div>
-   {!item.sample&&<div className="item-detail-ownership">
-    <div className="item-detail-ownership-card physical"><div className="item-detail-card-heading"><span><Disc3 size={20}/></span><div><strong>Physical Media</strong><small>{ownedCopyCount?`${ownedCopyCount} owned ${ownedCopyCount===1?'copy':'copies'}`:'No physical copy recorded'}</small></div></div>{formats.length?<div className="item-detail-format-list">{formats.map(([format,count])=><span key={format}><Check size={13}/>{format}{count>1?` ×${count}`:''}</span>)}</div>:<p className="item-detail-empty-note">Add a copy when you have it on your shelf.</p>}{physical.length>0&&<small className="item-detail-location">{[...new Set(physical.map(source=>source.location).filter(Boolean))].slice(0,2).join(' · ')||'Location not recorded'}</small>}</div>
-    <div className="item-detail-ownership-card access"><div className="item-detail-card-heading"><span>{preferred?<MediaActionIcon item={item} source={preferred} size={19}/>:<HardDrive size={19}/>}</span><div><strong>{preferred?'Ready to use':'Digital access'}</strong><small>{preferred?`Preferred: ${preferred.type==='local'?'Blank Box file':preferred.type==='digital'?'Linked file':preferred.label}`:noSource}</small></div></div><div className="item-detail-access-tags">{local.length>0&&<span><HardDrive size={13}/>{local.length} managed {item.discImport?'tracks':fileUnit}</span>}{linkedFiles.length>0&&<span><FolderOpen size={13}/>{linkedFiles.length} linked {fileUnit} in {linkedGroups.length} {linkedGroups.length===1?'group':'groups'}</span>}{linked.some(source=>source.type==='catalog')&&<span><FolderOpen size={13}/>{linked.filter(source=>source.type==='catalog').length} catalog references</span>}{connected.map(source=><span key={source.id||source.label}><Server size={13}/>{source.label}</span>)}{!local.length&&!linked.length&&!connected.length&&<span>No digital source linked</span>}</div>{item.backup!=='verified'&&local.length>0&&<small className="item-detail-backup-note">Managed-file backup has not been verified for this item.</small>}{linkedFiles.length>0&&<small className="item-detail-backup-note">Linked files stay on their source drives; library recovery points keep their records, not their bytes.</small>}</div>
-   </div>}
-   {item.sample&&<p className="item-detail-empty-note">Sample media is here to demonstrate the library. It does not count as an owned copy.</p>}
-   {!item.sample&&item.kind!=='tv'&&<MediaFileSections item={item}/>}
-   {!item.sample&&metadataEnabled&&item.kind!=='tv'&&<ItemActivityPanel key={item.id} item={item} onChange={onActivityChange}/>}
-   <MediaCatalogDetails item={item} busy={busy} onRefresh={refreshable?onRefresh:undefined}/>
-   {!item.sample&&item.kind==='tv'&&<TvSeriesOrganizer key={item.id} item={item} activityEnabled={metadataEnabled} onActivityChange={onActivityChange} onPlaySource={onPlaySource}/>}
-   <button type="button" className="item-detail-section-link" onClick={()=>setView('sources')}>See every edition and source <span>→</span></button>
-  </div>}
-  {view==='sources'&&<div className="item-detail-panel item-detail-sources"><div className="item-detail-section-heading"><div><h3>Copies & sources</h3><p>Each edition and its physical, local, or connected sources.</p></div>{refreshable&&<button className="subtle-button" type="button" disabled={busy} onClick={onRefresh}><RefreshCw size={15}/>Refresh connections</button>}</div><ExternalDiscPlayback item={item} drive={opticalDrive}/><VersionsAndEditions item={item} onPlaySource={onPlaySource} onRemoveSource={onRemoveSource}/>{!item.sample&&metadataEnabled&&<KnownEditions item={item} onFind={showFind}/>}{!item.sample&&metadataEnabled&&<CatalogIdentitySummary item={item}/>}{!item.sample&&<StreamingSearchLinks item={item} streamingServices={applicableStreamingServices}/>}{!item.sample&&<section className="item-detail-manage"><div><strong>{connectedOnly?'Hide this item':'Remove this item'}</strong><p>{connectedOnly?'Keep it out of Blank Box after future service syncs. The connected service and its files stay unchanged.':'Remove its Blank Box catalog record and links. Review the confirmation before proceeding.'}</p></div><button className="danger-button" type="button" disabled={busy} onClick={()=>void remove()}><Trash2 size={16}/>{connectedOnly?'Hide from Blank Box':item.sources.length>1?'Remove entire item':'Remove from Blank Box'}</button></section>}</div>}
-  {view==='find'&&canFind&&<div className="item-detail-panel item-detail-find"><div className="item-detail-section-heading"><div><h3>{hasStoreSearch?'Find another edition':'Search your services'}</h3><p>{hasStoreSearch?'Search by format, then confirm the exact listing at the store.':'Open a service search to check its current catalog.'}</p></div></div>{hasStoreSearch&&<FindAnotherCopy key={`${item.id}:${findFormat}`} item={item} initialFormat={findFormat}/>}<StreamingSearchLinks item={item} streamingServices={applicableStreamingServices}/></div>}
+  </div></div>
   {item.credit&&<p className="credit">{item.credit} <a href="/credits" target="_blank" rel="noopener noreferrer">Artwork credits & licenses</a></p>}
  </DialogContent></Dialog>;
 }

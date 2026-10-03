@@ -1,13 +1,13 @@
 'use client';
 
-import { Plus, RefreshCw, X } from 'lucide-react';
+import { Info, Plus, RefreshCw, X } from 'lucide-react';
 import { mediaLength, mediaTrackCount, type CatalogDetails, type Kind, type MediaItem } from '@/lib/media';
 
 const listLabels = {directors:'Directors',writers:'Writers',cast:'Cast',studios:'Studios',languages:'Languages',countries:'Countries',creators:'Creators',authors:'Authors',publishers:'Publishers',collections:'Collection labels'} as const;
 const textLabels = {contentRating:'Content rating',releaseType:'Release type',firstPublished:'First published',firstReleased:'First released'} as const;
 const countLabels = {seasonCount:'Seasons',episodeCount:'Episodes',pageCount:'Pages',trackCount:'Tracks',discCount:'Discs'} as const;
 
-export function MediaCatalogDetails({item,onRefresh,busy=false}:{item:MediaItem;onRefresh?:()=>void;busy?:boolean}) {
+export function MediaCatalogDetails({item,onRefresh,busy=false,showEmpty=false}:{item:MediaItem;onRefresh?:()=>void;busy?:boolean;showEmpty?:boolean}) {
  const details=item.catalogDetails||{};
  const rows:[string,string][]=[];
  if(item.year)rows.push(['Year',String(item.year)]);
@@ -24,8 +24,8 @@ export function MediaCatalogDetails({item,onRefresh,busy=false}:{item:MediaItem;
  for(const [key,label] of Object.entries(listLabels)){
   const values=details[key as keyof typeof listLabels];if(values?.length)rows.push([label,values.join(' · ')]);
  }
- if(!rows.length&&!details.ratings?.length&&!onRefresh)return null;
- return <section className="media-catalog-details" aria-label="About this title"><div className="media-catalog-heading"><h3>About this title</h3>{onRefresh&&<button className="text-button" type="button" disabled={busy} onClick={onRefresh}><RefreshCw size={14}/>{busy?'Refreshing…':'Refresh Details'}</button>}</div><dl>{rows.map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}{details.ratings?.map((rating,index)=><div key={`${rating.source}-${index}`}><dt>{rating.source}</dt><dd>{rating.value} / {rating.scale}{rating.count!==undefined?` · ${rating.count.toLocaleString()} ratings`:''}</dd></div>)}</dl>{!rows.length&&!details.ratings?.length&&<p className="muted small">No catalog facts saved yet. Refresh the connected details or find a match in Edit details.</p>}</section>;
+ if(!rows.length&&!details.ratings?.length&&!onRefresh&&!showEmpty)return null;
+ return <section className="media-catalog-details" aria-label="About this title"><div className="media-catalog-heading"><h3><Info size={18} aria-hidden="true"/>About this title</h3>{onRefresh&&<button className="text-button" type="button" disabled={busy} onClick={onRefresh}><RefreshCw size={14}/>{busy?'Refreshing…':'Refresh Details'}</button>}</div><dl>{rows.map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}{details.ratings?.map((rating,index)=><div key={`${rating.source}-${index}`}><dt>{rating.source}</dt><dd>{rating.value} / {rating.scale}{rating.count!==undefined?` · ${rating.count.toLocaleString()} ratings`:''}</dd></div>)}</dl>{!rows.length&&!details.ratings?.length&&<p className="muted small">{onRefresh?'Refresh connected details or use Choose details source to find a match.':'Add credits and catalog facts in Edit title details.'}</p>}</section>;
 }
 
 export function CatalogDetailsEditor({kind,value,onChange}:{kind:Kind;value:CatalogDetails;onChange:(value:CatalogDetails)=>void}) {

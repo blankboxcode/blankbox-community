@@ -1,13 +1,13 @@
 # Versions and compatibility
 
-This Linux/Docker package is **0.1.0-beta.9**. We version application packages, catalog schemas and optional metapacks independently. See [Platform status](PLATFORMS.md) for supported installation paths. Our existing experimental Windows download remains available separately.
+This Linux/Docker package is **0.1.0-beta.10**, with catalog schema **22**. We version application packages, catalog schemas and optional metapacks independently. See [Platform status](PLATFORMS.md) for supported installation paths. The separate experimental Windows download remains **0.1.0-beta.8**, with schema **20**.
 
 Core version, catalog schema and metapack version are separate:
 
 | Component | This package | Update rule |
 | --- | --- | --- |
-| Core | 0.1.0-beta.9 | Install an authenticated complete package; retain prior code and its recovery snapshot. |
-| Household catalog | Schema 20 | Upgrade only with a verified backup. A lower application version does not establish catalog compatibility. |
+| Core | 0.1.0-beta.10 | Install an authenticated complete package; retain prior code and its recovery snapshot. |
+| Household catalog | Schema 22 | Upgrading from Linux/Docker beta.8 or beta.9 migrates schema 20. An older application requires its paired pre-update snapshot. |
 | Metapack reader | 5 | Imported public packs require a trusted publisher signature and supported format. |
 | Included metapacks | Movies 4, Books 7, Music 5, TV Shows 4 | Versioned independently; existing selections and removals are retained. |
 

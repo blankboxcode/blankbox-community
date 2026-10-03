@@ -15,8 +15,12 @@ import { MediaActionIcon } from '@/components/media-action-icon';
 import { LocalMediaPlayer } from '@/components/local-media-player';
 import { MediaRightsChoice } from '@/components/media-rights';
 import { MEDIA_RIGHTS_TERMS_VERSION } from '@/lib/media';
+import { configuredServices } from '@/lib/streaming-services';
+import { StreamingServicesEditor } from '@/components/streaming-services-editor';
+import { OIDCAccountSettings } from '@/components/oidc-account-settings';
 import { OnboardingWizard } from '@/components/onboarding-wizard';
-import { MediaDetailDialog } from '@/components/media-detail-dialog';
+import { MediaItemDialog } from '@/components/media-item-dialog';
+import { catalogEditPayload, type CatalogEditFocus } from '@/lib/catalog-edit';
 import { CatalogEditorDialog, type MediaEdit } from '@/components/catalog-editor-dialog';
 import { MetadataMatchDialog } from '@/components/metadata-match-dialog';
 import { ReconciliationPanel, type ReviewPolicy } from '@/components/reconciliation-panel';
@@ -48,8 +52,8 @@ import { defaultHomeRows, featuredCoverPool, featuredMediaKeys, homeRowOptions, 
 import { normalizeSidebarOrder } from '@/lib/sidebar-preferences';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { blankBoxClient, BlankBoxClientError, type MetadataCandidate, type ScanFile, type LibraryPage } from '@/lib/blank-box-client';
-import { bytes, defaults, detectKind, hasDigitalOrConnectedSource, isAudiobookSource, isConnectedPlaybackSource, kindNames, mediaAddedAt, mediaReleaseAt, preferredPlaybackSource, readerFormat, sourceActionLabel, summarizeCollection, type Kind, type LibraryState, type MediaItem, type MediaSource, type ReaderFormat, type Settings, type StreamingService } from '@/lib/media';
-import { defaultKindForFormat, emptyPhysicalDraft, physicalDraftForFormat, physicalDraftForKind, physicalFormatLabel, physicalFormats, physicalKindOptions, type PhysicalDraft, type PhysicalFormat } from '@/lib/physical-media';
+import { bytes, defaults, detectKind, hasDigitalOrConnectedSource, isAudiobookSource, isConnectedPlaybackSource, kindNames, mediaAddedAt, mediaReleaseAt, preferredPlaybackSource, readerFormat, sourceActionLabel, summarizeCollection, type Kind, type LibraryState, type MediaItem, type MediaSource, type ReaderFormat, type Settings } from '@/lib/media';
+import { defaultKindForFormat, emptyPhysicalDraft, preferredPhysicalFormat, physicalFormatLabel, physicalFormats, physicalKindOptions, type PhysicalDraft, type PhysicalFormat } from '@/lib/physical-media';
 import { BLANKBOX_CHANNEL, BLANKBOX_PACKAGE_NAME, BLANKBOX_VERSION } from '@/lib/version';
 import './blank-box.css';
 type View = 'home' | 'collections' | 'library' | 'physical' | 'collecting' | 'movie' | 'tv' | 'music' | 'photo' | 'book' | 'comic' | 'game' | 'import' | 'services' | 'storage' | 'settings';
@@ -68,13 +72,6 @@ const navItems: {
     label: string;
     icon: typeof Home;
 }[] = [{ id: 'home', label: navigationLabels.home, icon: Home }, { id: 'library', label: navigationLabels.library, icon: Library }, { id: 'collections', label: navigationLabels.collections, icon: Layers3 }, { id: 'movie', label: navigationLabels.movie, icon: Film }, { id: 'tv', label: navigationLabels.tv, icon: Tv }, { id: 'music', label: navigationLabels.music, icon: Music2 }, { id: 'photo', label: navigationLabels.photo, icon: Images }, { id: 'book', label: navigationLabels.book, icon: BookOpen }, { id: 'comic', label: navigationLabels.comic, icon: BookOpen }, { id: 'game', label: navigationLabels.game, icon: Gamepad2 }, { id: 'physical', label: navigationLabels.physical, icon: Disc3 }];
-const allServices: {
-    id: StreamingService;
-    name: string;
-    mark: string;
-    color: string;
-    url: string;
-}[] = [{ id: 'netflix', name: 'Netflix', mark: 'N', color: '#ed2439', url: 'https://www.netflix.com/' }, { id: 'prime-video', name: 'Prime Video', mark: 'prime', color: '#59b8ed', url: 'https://www.primevideo.com/' }, { id: 'disney-plus', name: 'Disney+', mark: 'Disney+', color: '#91acee', url: 'https://www.disneyplus.com/' }, { id: 'youtube', name: 'YouTube', mark: '▶', color: '#ff4444', url: 'https://www.youtube.com/' }, { id: 'spotify', name: 'Spotify', mark: 'Spotify', color: '#6dd799', url: 'https://open.spotify.com/' }, { id: 'apple-tv', name: 'Apple TV', mark: 'tv', color: '#ededed', url: 'https://tv.apple.com/' }];
 const homeServices: {
     name: string;
     description: string;
@@ -223,10 +220,6 @@ export default function BlankBox() {
         createdAt: string;
     }[]>([]), [recoveryLoading, setRecoveryLoading] = useState(false);
     const [currentCameraScanId, setCurrentCameraScanId] = useState(''), [completedCameraScanId, setCompletedCameraScanId] = useState('');
-    const [cameraReference, setCameraReference] = useState<{
-        candidate: MetadataCandidate;
-        signature: string;
-    } | null>(null);
     const [physicalMetadata, setPhysicalMetadata] = useState<{
         id: string;
         signature: string;
@@ -239,18 +232,28 @@ export default function BlankBox() {
         error?: string;
     } | null>(null);
     const [packMatchRevision, setPackMatchRevision] = useState(0);
-    const [physicalReviewSource, setPhysicalReviewSource] = useState<'household' | 'connected' | 'packs'>('household');
-    const [physicalSearchQuery, setPhysicalSearchQuery] = useState('');
-    const [physicalManual, setPhysicalManual] = useState(false);
+    const [physicalReviewSource, setPhysicalReviewSource] = useState<'household' | 'connected' | 'packs'>('packs');
+    const [physicalManualCheck, setPhysicalManualCheck] = useState<{
+        signature: string;
+        candidates: MediaItem[];
+    } | null>(null);
     const physicalStart = useRef<PhysicalDraft>(emptyPhysicalDraft);
     const [editorRevision, setEditorRevision] = useState(0);
+    const [editorFocus, setEditorFocus] = useState<CatalogEditFocus>({ section: 'all' });
+    const itemReturn = useRef<{
+        top: number;
+        element: HTMLElement | null;
+    }>({ top: 0, element: null });
+    const editorTrigger = useRef<HTMLElement | null>(null);
+    const itemOpenRequest = useRef(0);
+    const closeItem = useCallback(() => { itemOpenRequest.current++; setSelected(null); requestAnimationFrame(() => { window.scrollTo({ top: itemReturn.current.top, behavior: 'instant' }); if (itemReturn.current.element?.isConnected)
+        itemReturn.current.element.focus({ preventScroll: true }); }); }, []);
     const [physicalChoice, setPhysicalChoice] = useState<{
         item: MediaItem;
         mode: 'same' | 'new' | null;
         versionId: string;
         metadataEntityId?: string;
     } | null>(null);
-    const [physicalIntakeTarget, setPhysicalIntakeTarget] = useState<MediaItem | null>(null);
     const [physicalView, setPhysicalView] = useState<'grid' | 'shelves'>('grid'), [physicalFormatFilter, setPhysicalFormatFilter] = useState('all');
     const [reading, setReading] = useState<{
         item: MediaItem;
@@ -276,7 +279,7 @@ export default function BlankBox() {
     const isMobile = useIsMobile();
     const activeTvMode = tvMode && !isMobile;
     const [sourceReviewOpen, setSourceReviewOpen] = useState(false);
-    const filesRef = useRef<HTMLInputElement>(null), searchRef = useRef<HTMLInputElement>(null), physicalReviewDialogRef = useRef<HTMLDivElement>(null), pollRef = useRef(false), scanRef = useRef(''), reviewJobWatchRef = useRef<{
+    const filesRef = useRef<HTMLInputElement>(null), searchRef = useRef<HTMLInputElement>(null), pollRef = useRef(false), scanRef = useRef(''), reviewJobWatchRef = useRef<{
         jobId: string;
         baseline: number;
     } | null>(null), normalSidebarOpenRef = useRef(true), viewRef = useRef<View>('home'), viewHistoryRef = useRef<View[]>(['home']);
@@ -290,16 +293,22 @@ export default function BlankBox() {
     const [libraryAttachError, setLibraryAttachError] = useState('');
     const settingsDirty = JSON.stringify(form) !== JSON.stringify(state.settings);
     const confirmSettingsExit = useCallback(() => viewRef.current !== 'settings' || !settingsDirty || window.confirm('You have unsaved settings. Leave this page and discard those changes?'), [settingsDirty]);
-    const changeView = useCallback((v: View, back = false) => { const prior = viewRef.current; if (v === prior)
-        return true; if (!confirmSettingsExit())
-        return false; if (prior === 'settings')
+    const changeView = useCallback((v: View, back = false) => { const prior = viewRef.current; if (v === prior) {
+        itemOpenRequest.current++;
+        setSelected(null);
+        return true;
+    } if (!confirmSettingsExit())
+        return false; itemOpenRequest.current++; setSelected(null); if (prior === 'settings')
         setForm(state.settings); viewRef.current = v; setView(v); setLibrarySelectionMode(false); setLibrarySelection(new Set()); setQuery(''); setFilter('all'); setPhysicalFormatFilter('all'); setFavorites(false); setGenreFilter(''); setActivityFilter(''); if (back)
         viewHistoryRef.current.pop();
     else if (viewHistoryRef.current.at(-1) !== v)
         viewHistoryRef.current.push(v); setHistoryCount(viewHistoryRef.current.length); window.scrollTo({ top: 0, behavior: 'instant' }); return true; }, [confirmSettingsExit, state.settings]);
     const go = useCallback((v: View) => { if (changeView(v))
         window.location.hash = v; }, [changeView]);
-    const goBack = () => { const previous = viewHistoryRef.current.at(-2); if (previous && changeView(previous, true))
+    const goBack = () => { if (selected) {
+        closeItem();
+        return;
+    } const previous = viewHistoryRef.current.at(-2); if (previous && changeView(previous, true))
         window.location.hash = previous; };
     const reload = useCallback(async () => { try {
         const data = await blankBoxClient.loadLibrary();
@@ -331,7 +340,7 @@ export default function BlankBox() {
         window.history.replaceState(null, '', `#${viewRef.current}`); }; window.addEventListener('hashchange', hash); return () => window.removeEventListener('hashchange', hash); }, [changeView]);
     useEffect(() => { if (view !== 'settings' || !settingsDirty)
         return; const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; }; window.addEventListener('beforeunload', warn); return () => window.removeEventListener('beforeunload', warn); }, [view, settingsDirty]);
-    useEffect(() => { const key = (e: KeyboardEvent) => { if (e.key === '/' && !/INPUT|TEXTAREA/.test((e.target as HTMLElement).tagName)) {
+    useEffect(() => { const key = (e: KeyboardEvent) => { if (e.key === '/' && !/INPUT|TEXTAREA/.test((e.target as HTMLElement).tagName) && !document.querySelector('[role="dialog"]')) {
         e.preventDefault();
         searchRef.current?.focus();
     } if (!activeTvMode || !e.key.startsWith('Arrow') || /INPUT|TEXTAREA|SELECT/.test((e.target as HTMLElement).tagName) || document.querySelector('[role="dialog"]'))
@@ -483,8 +492,10 @@ export default function BlankBox() {
         return false; if (form.physicalLocations.some(saved => saved.toLocaleLowerCase() === value.toLocaleLowerCase()))
         return true; return persistSettings({ ...form, physicalLocations: [...form.physicalLocations, value].sort((left, right) => left.localeCompare(right)) }); };
     const saveVisiblePhysicalFormats = async (physicalFormats: PhysicalFormat[]) => persistSettings({ ...form, physicalFormats });
+    const saveDefaultPhysicalFormat = async (kind: Kind, format: PhysicalFormat) => persistSettings({ ...form, physicalFormats: form.physicalFormats.includes(format) ? form.physicalFormats : [...form.physicalFormats, format], physicalDefaultFormats: { ...form.physicalDefaultFormats, [kind]: format } });
+    const savePhysicalSearchDefault = async () => persistSettings({ ...form, physicalTitleSearchSource: physicalReviewSource });
     const saveVisibleGamePlatforms = async (gamePlatforms: string[]) => persistSettings({ ...form, gamePlatforms });
-    const openEditor = (item: MediaItem, origin: 'detail' | 'intake') => { setEditorOrigin(origin); setCatalogEditor(item); };
+    const openEditor = (item: MediaItem, origin: 'detail' | 'intake', focus: CatalogEditFocus = { section: 'all' }) => { editorTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setEditorFocus(focus); setEditorOrigin(origin); setCatalogEditor(item); };
     const backFromEditor = () => { if (!catalogEditor)
         return; if (editorOrigin === 'intake' && intakeChoice) {
         setCatalogEditor(null);
@@ -508,7 +519,8 @@ export default function BlankBox() {
     const closeEditor = () => { if (editorOrigin === 'intake' && catalogEditor) {
         requestPhysicalCancel(catalogEditor, true);
         return;
-    } setCatalogEditor(null); setEditorOrigin(null); };
+    } if (catalogEditor)
+        setSelected(catalogEditor); setCatalogEditor(null); setEditorOrigin(null); };
     const cancelPhysicalImport = async () => { if (!pendingPhysicalCancel)
         return; const item = pendingPhysicalCancel; const result = await act('delete', { id: item.id, confirmId: item.id, cancelPhysicalIntake: true, physicalSourceId: item.sources[0]?.id }, 'Physical import canceled'); if (result) {
         setPendingPhysicalCancel(null);
@@ -527,12 +539,25 @@ export default function BlankBox() {
     const physicalLocations = useMemo(() => [...new Set([...form.physicalLocations, ...state.items.flatMap(item => item.sources.filter(source => source.type === 'physical').map(source => source.location || '')).filter(Boolean)])].sort((left, right) => left.localeCompare(right)), [form.physicalLocations, state.items]);
     const gamePlatforms = form.gamePlatforms;
     const openPhysicalPreferences = () => { setSettingsTab('collection'); go('settings'); window.setTimeout(() => document.getElementById('physical-media-settings')?.scrollIntoView({ behavior: 'smooth' }), 0); };
-    const openPhysicalFor = (formats: PhysicalFormat[]) => { if (!formats.length) {
+    const beginPhysicalDraft = (draft: PhysicalDraft, target: MediaItem | null = null, candidate?: MetadataCandidate) => {
+        physicalStart.current = { ...draft };
+        setDisc(draft);
+        setPhysicalReview({ draft, candidates: [] });
+        setPhysicalReviewSource(candidate ? 'packs' : form.physicalTitleSearchSource || 'packs');
+        setPhysicalChoice(target ? { item: target, mode: matchingPhysicalVersions(target, draft).length ? null : 'new', versionId: matchingPhysicalVersions(target, draft)[0]?.id || '' } : null);
+        setPhysicalMetadata(candidate ? { id: candidate.id, signature: physicalMetadataSignature(draft), candidate } : null);
+        setPhysicalManualCheck(null);
+        setSeparatePhysicalConfirmed(false);
+        setPackMatchLookup(null);
+        setPackMatchRevision(value => value + 1);
+        setAddDisc(true);
+    };
+    const openPhysicalFor = (selectedFormats: PhysicalFormat[], settings: Settings = form) => { const formats = physicalFormats.filter(format => selectedFormats.includes(format)); if (!formats.length) {
         openPhysicalPreferences();
         toast.info('Choose the physical formats you use in Physical Media preferences.');
         return;
-    } const format = formats.includes(disc.format) ? disc.format : formats[0]; const draft = { ...emptyPhysicalDraft, format, kind: defaultKindForFormat(format) }; physicalStart.current = draft; setDisc(draft); setPhysicalManual(false); setAddDisc(true); };
-    const openPhysical = () => { setPhysicalIntakeTarget(null); setCameraEntryActive(false); openPhysicalFor(intakeFormats); };
+    } const kind = physicalKindOptions(formats[0]).includes(view as Kind) ? view as Kind : defaultKindForFormat(formats[0]); const format = preferredPhysicalFormat(kind, formats, settings.physicalDefaultFormats) || formats[0]; beginPhysicalDraft({ ...emptyPhysicalDraft, format, kind: physicalKindOptions(format).includes(kind) ? kind : defaultKindForFormat(format) }); setPhysicalReviewSource(settings.physicalTitleSearchSource || 'packs'); };
+    const openPhysical = () => { setCameraEntryActive(false); cameraArtwork.current = null; openPhysicalFor(intakeFormats); };
     const openPhysicalForItem = (item: MediaItem) => {
         const compatible = intakeFormats.filter(format => physicalKindOptions(format).includes(item.kind));
         if (!compatible.length) {
@@ -544,34 +569,28 @@ export default function BlankBox() {
             return;
         }
         const recorded = item.sources.find(source => source.type === 'physical' && compatible.includes(source.label as PhysicalFormat));
-        const format = (recorded?.label as PhysicalFormat | undefined) ?? compatible[0];
-        setDisc({ ...emptyPhysicalDraft, format, kind: item.kind, title: item.title, year: item.year ? String(item.year) : '', genre: item.genre || '', description: item.description || '' });
-        physicalStart.current = { ...emptyPhysicalDraft, format, kind: item.kind };
-        setPhysicalManual(false);
-        setPhysicalIntakeTarget(item);
+        const format = preferredPhysicalFormat(item.kind, compatible, form.physicalDefaultFormats, recorded?.label as PhysicalFormat) || compatible[0];
+        beginPhysicalDraft({ ...emptyPhysicalDraft, format, kind: item.kind, title: item.title, year: item.year ? String(item.year) : '', genre: item.genre || '', description: item.description || '' }, item);
         setCameraEntryActive(false);
+        cameraArtwork.current = null;
         setCatalogEditor(null);
         setEditorOrigin(null);
-        setSelected(null);
-        setAddDisc(true);
+        setSelected(item);
     };
     const cameraArtwork = useRef<File | null>(null);
+    const openPhysicalCd = () => { setCameraEntryActive(false); cameraArtwork.current = null; beginPhysicalDraft({ ...emptyPhysicalDraft, format: 'CD', kind: 'music' }); };
     const useCameraEntry = ({ scanId, code, title, match, candidate, artwork }: CameraEntry) => {
         cameraArtwork.current = artwork || null;
         const matchedSource = match?.sources.find(source => source.type === 'physical' && !!source.barcode && barcodeEquivalent(source.barcode, code));
         const matchedFormat = matchedSource && physicalFormats.includes(matchedSource.label as PhysicalFormat) ? matchedSource.label as PhysicalFormat : undefined;
         const candidateFormat = candidate?.format && physicalFormats.includes(candidate.format as PhysicalFormat) ? candidate.format as PhysicalFormat : undefined;
-        const format = matchedFormat || candidateFormat || (candidate?.kind === 'book' ? 'Book' : candidate?.kind === 'music' ? 'CD' : candidate?.kind === 'comic' ? 'Comic' : candidate?.kind === 'game' ? 'Game' : intakeFormats[0] || 'DVD');
+        const cameraKind = match?.kind || candidate?.kind || defaultKindForFormat(intakeFormats[0] || 'DVD');
+        const format = matchedFormat || candidateFormat || preferredPhysicalFormat(cameraKind, intakeFormats, form.physicalDefaultFormats) || (cameraKind === 'book' ? 'Book' : cameraKind === 'music' ? 'CD' : cameraKind === 'comic' ? 'Comic' : cameraKind === 'game' ? 'Game' : intakeFormats[0] || 'DVD');
         const draft = { ...emptyPhysicalDraft, format, kind: match?.kind || candidate?.kind || defaultKindForFormat(format), title: title || match?.title || '', year: candidate?.year ? String(candidate.year) : match?.year ? String(match.year) : '', barcode: code, edition: matchedSource?.edition || candidate?.edition || '', season: matchedSource?.season || candidate?.season || '', platform: matchedSource?.platform || '' };
-        physicalStart.current = { ...emptyPhysicalDraft, format, kind: draft.kind };
-        setPhysicalManual(false);
+        beginPhysicalDraft(draft, null, candidate);
         setCurrentCameraScanId(scanId);
-        setDisc(draft);
-        setCameraReference(candidate ? { candidate, signature: physicalMetadataSignature(draft) } : null);
-        setPhysicalIntakeTarget(null);
         setCameraEntryActive(true);
         setCameraIntakeOpen(false);
-        setAddDisc(true);
     };
     const saveScannedArtwork = async (item: MediaItem) => { const file = cameraArtwork.current; cameraArtwork.current = null; if (!file)
         return item; try {
@@ -581,10 +600,11 @@ export default function BlankBox() {
         return updated;
     }
     catch (error) {
-        toast.error(`Physical item saved, but its cover could not be saved: ${(error as Error).message} Upload it from Edit details.`);
+        toast.error(`Physical item saved, but its cover could not be saved: ${(error as Error).message} Upload it from Edit artwork.`);
         return item;
     } };
-    const createPhysical = async (draft: PhysicalDraft, metadataEntityId?: string) => { const v = await act('physical', { ...physicalPayload(draft), ...(metadataEntityId ? { metadataEntityId } : {}) }, 'Added to your Physical Media'); if (v?.item) {
+    const createPhysical = async (draft: PhysicalDraft, metadataEntityId?: string) => { if (!(document.getElementById('physical-item-details') as HTMLFormElement | null)?.reportValidity())
+        return; const v = await act('physical', { ...physicalPayload(draft), ...(metadataEntityId ? { metadataEntityId } : {}) }, 'Added to your Physical Media'); if (v?.item) {
         const added = await saveScannedArtwork(v.item as MediaItem);
         rememberPhysicalDraft(draft);
         setPhysicalMetadata(null);
@@ -607,7 +627,7 @@ export default function BlankBox() {
     const closePhysicalDraft = () => {
         if (busy)
             return;
-        const entered = Object.entries(disc).some(([key, value]) => !['format', 'kind'].includes(key) && !!value.trim()) || disc.format !== physicalStart.current.format || disc.kind !== physicalStart.current.kind;
+        const entered = Object.entries(disc).some(([key, value]) => value !== physicalStart.current[key as keyof PhysicalDraft]);
         if (entered && !window.confirm('Cancel adding this physical item and clear the entered details?'))
             return;
         setAddDisc(false);
@@ -615,11 +635,8 @@ export default function BlankBox() {
         setPhysicalChoice(null);
         setPhysicalMetadata(null);
         setSeparatePhysicalConfirmed(false);
-        setPhysicalIntakeTarget(null);
-        setPhysicalSearchQuery('');
-        setPhysicalManual(false);
+        setPhysicalManualCheck(null);
         setDisc(emptyPhysicalDraft);
-        setCameraReference(null);
         setCurrentCameraScanId('');
         cameraArtwork.current = null;
         if (cameraEntryActive) {
@@ -627,43 +644,56 @@ export default function BlankBox() {
             setCameraIntakeOpen(true);
         }
     };
-    const backToPhysicalDetails = (manual = physicalManual) => { if (!physicalReview || busy)
-        return; setDisc(physicalReview.draft); setPhysicalReview(null); setPhysicalChoice(null); setPhysicalManual(manual); setAddDisc(true); };
-    const reviewPhysical = async () => {
-        if (busy || !disc.title.trim())
+    const changePhysicalReviewDraft = (draft: PhysicalDraft) => {
+        if (busy)
             return;
-        const draft = { ...disc };
-        setBusy(true);
-        try {
-            const v = await blankBoxClient.action('physical-reference-matches', { title: draft.title.trim(), kind: draft.kind, ...(draft.year ? { year: Number(draft.year) } : {}), compatibleVideoKinds: true });
-            const candidates = v.results || [];
-            setPhysicalReviewSource(cameraEntryActive && cameraReference?.signature === physicalMetadataSignature(draft) ? 'packs' : 'household');
-            setPhysicalSearchQuery(draft.title.slice(0, 200));
-            setPhysicalChoice(physicalIntakeTarget ? { item: physicalIntakeTarget, mode: null, versionId: matchingPhysicalVersions(physicalIntakeTarget, draft)[0]?.id || '' } : null);
-            setPhysicalMetadata(cameraEntryActive && cameraReference?.signature === physicalMetadataSignature(draft) ? { id: cameraReference.candidate.id, signature: cameraReference.signature, candidate: cameraReference.candidate } : null);
+        const identityChanged = physicalMetadataSignature(draft) !== physicalMetadataSignature(disc);
+        setDisc(draft);
+        setPhysicalReview(current => ({ draft, candidates: identityChanged ? [] : current?.candidates || [] }));
+        if (identityChanged) {
+            setPhysicalMetadata(null);
+            setPhysicalChoice(null);
             setSeparatePhysicalConfirmed(false);
-            setPackMatchLookup(null);
-            setPackMatchRevision(value => value + 1);
-            setAddDisc(false);
-            setPhysicalReview({ draft, candidates });
+            setPhysicalManualCheck(null);
         }
-        catch (e) {
-            toast.error((e as Error).message);
+    };
+    const addManualPhysical = async () => {
+        if (busy || !disc.title.trim() || disc.kind === 'game' && (!disc.platform.trim() || disc.platform === '__custom__'))
+            return;
+        const draft = { ...disc }, signature = physicalMetadataSignature(draft);
+        if (physicalManualCheck?.signature === signature && physicalManualCheck.candidates.length) {
+            if (!separatePhysicalConfirmed) {
+                toast.info('Choose a matching title or confirm a separate library title below.');
+                return;
+            }
+            await createPhysical(draft);
+            return;
+        }
+        setBusy(true);
+        setPhysicalMetadata(null);
+        try {
+            const result = await blankBoxClient.action('physical-reference-matches', { title: draft.title.trim(), kind: draft.kind, ...(draft.year ? { year: Number(draft.year) } : {}), compatibleVideoKinds: true });
+            const candidates = result.results || [];
+            setPhysicalReview({ draft, candidates });
+            setPhysicalManualCheck({ signature, candidates });
+            setSeparatePhysicalConfirmed(false);
+            if (candidates.length) {
+                toast.info('Possible library matches are shown here. Choose one or confirm a separate title.');
+                return;
+            }
+            await createPhysical(draft);
+        }
+        catch (cause) {
+            toast.error(`Could not check existing titles: ${(cause as Error).message}`);
         }
         finally {
             setBusy(false);
         }
     };
-    const changePhysicalReviewDraft = (draft: PhysicalDraft) => { if (busy)
-        return; setDisc(draft); setPhysicalReview(current => current ? { ...current, draft } : null); setPhysicalMetadata(null); setPhysicalChoice(null); setSeparatePhysicalConfirmed(false); };
-    const addManualPhysical = () => { if (!physicalReview || busy)
-        return; if (physicalReview.candidates.length && !window.confirm(`Add “${physicalReview.draft.title}” as a separate library title? Possible matches are shown above. To add this item under an existing title, choose that title instead.`))
-        return; void createPhysical(physicalReview.draft); };
-    const scrollPhysicalReviewToTop = () => requestAnimationFrame(() => physicalReviewDialogRef.current?.scrollTo({ top: 0, behavior: 'smooth' }));
-    const searchPhysicalLibrary = async () => { if (!physicalReview || !physicalSearchQuery.trim())
-        return; setBusy(true); try {
-        const v = await blankBoxClient.action('match-search', { query: physicalSearchQuery.trim().slice(0, 200), sourceScope: 'all' });
-        const compatible = (v.results || []).filter(item => item.kind === physicalReview.draft.kind || ['movie', 'tv'].includes(item.kind) && ['movie', 'tv'].includes(physicalReview.draft.kind));
+    const searchPhysicalLibrary = async () => { if (!physicalReview || busy || !disc.title.trim())
+        return; setBusy(true); setPhysicalManualCheck(null); setSeparatePhysicalConfirmed(false); try {
+        const v = await blankBoxClient.action('match-search', { query: disc.title.trim().slice(0, 200), sourceScope: 'all' });
+        const compatible = (v.results || []).filter(item => item.kind === disc.kind || ['movie', 'tv'].includes(item.kind) && ['movie', 'tv'].includes(disc.kind));
         setPhysicalReview(current => current ? { ...current, candidates: compatible } : null);
     }
     catch (e) {
@@ -671,16 +701,15 @@ export default function BlankBox() {
     }
     finally {
         setBusy(false);
-        scrollPhysicalReviewToTop();
     } };
-    const attachPhysical = async () => { if (!physicalReview || !physicalChoice?.mode)
+    const attachPhysical = async () => { if (!physicalReview || busy || !physicalChoice?.mode || !(document.getElementById('physical-item-details') as HTMLFormElement | null)?.reportValidity())
         return; const { item, mode, versionId, metadataEntityId } = physicalChoice; const newEdition = mode === 'new'; const v = await act('attach-physical', { id: item.id, ...physicalPayload(physicalReview.draft), newEdition, ...(newEdition ? {} : { versionId }), ...(metadataEntityId ? { metadataEntityId } : {}) }, newEdition ? 'New edition and physical copy added to this title' : 'Another physical copy added to this edition'); if (v?.item) {
         const added = await saveScannedArtwork(v.item as MediaItem);
         rememberPhysicalDraft(physicalReview.draft);
         setPhysicalMetadata(null);
         setPhysicalReview(null);
         setPhysicalChoice(null);
-        setPhysicalIntakeTarget(null);
+        setAddDisc(false);
         setDisc(emptyPhysicalDraft);
         if (!cameraEntryActive)
             setSelected(added);
@@ -819,13 +848,18 @@ export default function BlankBox() {
         return page;
     }, [physicalShelfGroups, libraryPageIndex, state.pagedLibrary]);
     const changeLibraryPage = (page: number) => { setLibrarySelectionMode(false); setLibrarySelection(new Set()); setLibraryPage({ key: libraryPageKey, page }); document.querySelector('.main-content')?.scrollTo({ top: 0, behavior: 'instant' }); };
-    const openItem = async (item: MediaItem) => { try {
-        setSelected(item.browseSummary ? await blankBoxClient.item(item.id) : item);
+    const openItem = async (item: MediaItem) => { const request = ++itemOpenRequest.current; const returning = { top: window.scrollY, element: document.activeElement instanceof HTMLElement ? document.activeElement : null }; try {
+        const full = item.browseSummary ? await blankBoxClient.item(item.id) : item;
+        if (request !== itemOpenRequest.current)
+            return;
+        itemReturn.current = returning;
+        setSelected(full);
         setLibrarySelectionMode(false);
         setLibrarySelection(new Set());
     }
     catch (cause) {
-        toast.error((cause as Error).message);
+        if (request === itemOpenRequest.current)
+            toast.error((cause as Error).message);
     } };
     const bulkRenameTitles = async () => {
         if (!selectedPageItems.length)
@@ -988,10 +1022,10 @@ export default function BlankBox() {
         return false; const sources = matchTarget.sources; const keepMatchId = sources.some(source => source.type === 'digital') && sources.every(source => source.type === 'digital' || source.type === 'catalog'); const result = await act('match', { id: matchTarget.id, matchId: match.id, ...(keepMatchId ? { keepMatchId: true } : {}) }, 'Titles matched'); if (result?.item) {
         setCatalogEditor(result.item);
         setEditorRevision(revision => revision + 1);
-        setSelected(null);
+        setSelected(result.item);
         return true;
     } return false; };
-    const saveMetadata = async (item: MediaItem, edit: MediaEdit) => { const result = await act('update', { id: item.id, title: edit.title.trim(), kind: edit.kind, catalogDetails: edit.catalogDetails, releaseDate: edit.releaseDate || null, duration: edit.duration ? Number(edit.duration) * 60 : null, year: edit.year ? Number(edit.year) : null, genre: edit.genre.trim(), customGenres: edit.customGenres, description: edit.description.trim(), physicalSources: edit.physicalSources, digitalSources: edit.digitalSources, ...(edit.kind === 'tv' ? { tvSeasons: edit.tvSeasons.map(({ versionId, season }) => ({ versionId, season })) } : {}), ...(edit.kind === 'music' ? { artist: edit.artist.trim(), ...(item.discImport ? { trackTitles: edit.trackTitles } : {}) } : {}) }, 'Details saved'); if (!result)
+    const saveMetadata = async (item: MediaItem, edit: MediaEdit) => { const result = await act('update', catalogEditPayload(item, edit, editorFocus), 'Changes saved'); if (!result)
         return false; const updated = result.item as MediaItem; setCatalogEditor(null); setEditorOrigin(null); setIntakeChoice(null); setSelected(updated); return true; };
     const removeSelected = async () => { if (!selected)
         return false; const managed = selected.sources.some(source => source.type === 'local'), connected = selected.sources.some(source => ['jellyfin', 'plex'].includes(source.type)); const result = await act('delete', { id: selected.id, confirmId: selected.id }, managed ? 'Managed copy removed; original source unchanged' : connected ? 'Hidden from Blank Box; connected service unchanged' : 'Removed from Blank Box'); if (result) {
@@ -1000,7 +1034,7 @@ export default function BlankBox() {
     const playUrl = (item: MediaItem) => preferredPlaybackSource(item)?.url || '';
     const playLabel = (item: MediaItem) => sourceActionLabel(item, preferredPlaybackSource(item));
     const openReader = (item: MediaItem, source: MediaSource, url: string) => { const format = readerFormat(source); if (!format || !url)
-        return false; setSelected(null); setReading({ item, source, url, format }); return true; };
+        return false; setReading({ item, source, url, format }); return true; };
     const startPlay = (item: MediaItem) => { const source = preferredPlaybackSource(item); if (source && openReader(item, source, source.url || ''))
         return; if (isConnectedPlaybackSource(source)) {
         const link = safeUrl(source.url);
@@ -1015,7 +1049,6 @@ export default function BlankBox() {
             return;
         }
     } if (source?.url || item.kind === 'photo' && item.poster) {
-        setSelected(null);
         setMusicStartSourceId(source?.id);
         setPlaying(item.kind === 'music' ? item : source ? { ...item, mime: source.mime || item.mime, bytes: source.bytes || item.bytes, sources: [source] } : item);
     }
@@ -1026,7 +1059,6 @@ export default function BlankBox() {
         window.open(safeUrl(source.url), '_blank', 'noopener,noreferrer');
         return;
     } if ((source.type === 'local' || source.type === 'digital') && source.url) {
-        setSelected(null);
         setMusicStartSourceId(source.id);
         setPlaying(item.kind === 'music' ? item : { ...item, mime: source.mime || item.mime, bytes: source.bytes || item.bytes, sources: [source] });
         return;
@@ -1083,16 +1115,25 @@ export default function BlankBox() {
         setSelected(v.item); };
     const chooseEditorMetadata = async (item: MediaItem, sourceId: string) => { const v = await act('metadata-choice', { id: item.id, sourceId, confirm: true, replaceEdits: true }, sourceId === 'blankbox' ? 'Using Blank Box details' : 'Metadata source selected'); if (v?.item) {
         setCatalogEditor(v.item);
+        if (selected?.id === item.id)
+            setSelected(v.item);
         setEditorRevision(revision => revision + 1);
     } };
     const refreshEditorMetadata = async (item: MediaItem) => { const v = await act('refresh-item', { id: item.id }, 'Connected metadata refreshed'); if (v?.item) {
         setCatalogEditor(v.item);
+        if (selected?.id === item.id)
+            setSelected(v.item);
         setEditorRevision(revision => revision + 1);
     } };
-    const uploadEditorArtwork = async (item: MediaItem, image: Blob) => { const updated = await blankBoxClient.uploadArtwork(item.id, image); setCatalogEditor(updated); setEditorRevision(revision => revision + 1); await reload(); toast.success('Local cover saved.'); };
+    const uploadEditorArtwork = async (item: MediaItem, image: Blob) => { const updated = await blankBoxClient.uploadArtwork(item.id, image); setCatalogEditor(updated); if (selected?.id === item.id)
+        setSelected(updated); if (editorFocus.section !== 'artwork')
+        setEditorRevision(revision => revision + 1); await reload(); toast.success('Local cover saved.'); };
     const removeEditorArtwork = async (item: MediaItem) => { const result = await act('artwork-remove', { id: item.id, confirm: true }, 'Local cover removed'); if (result?.item) {
         setCatalogEditor(result.item);
-        setEditorRevision(revision => revision + 1);
+        if (selected?.id === item.id)
+            setSelected(result.item);
+        if (editorFocus.section !== 'artwork')
+            setEditorRevision(revision => revision + 1);
     } };
     const resolveReview = async (reviewId: string, policy: ReviewPolicy, targetId?: string, fromDialog = false) => { const v = await act('resolve-review', { reviewId, policy, ...(targetId ? { targetId } : {}) }, policy === 'new-version' ? 'Edition added' : 'Match review saved'); if (v) {
         if (fromDialog && state.reviewCount <= 1)
@@ -1129,7 +1170,7 @@ export default function BlankBox() {
     const card = (item: MediaItem, wide = false) => { const badge = physicalBadge(item); return <article className={`media-card ${wide ? 'wide' : ''}`} key={item.id}>{librarySelectionMode && libraryView && <label className="media-card-select"><Checkbox checked={librarySelection.has(item.id)} onCheckedChange={checked => setLibrarySelection(previous => { const next = new Set(previous); if (checked)
         next.add(item.id);
     else
-        next.delete(item.id); return next; })}/><span className="sr-only">Select {item.title}</span></label>}<button data-tv onClick={() => void openItem(item)} className="art-button" aria-label={`Open ${item.title}`}><div className={`artwork kind-${item.kind}`}>{item.poster ? <img src={item.poster} alt="" loading="lazy"/> : <span className="no-art">{(() => { const Icon = icons[item.kind]; return <Icon size={38} strokeWidth={1}/>; })()}<strong>{item.title}</strong></span>}<span className="art-shade"/>{badge && <span className="art-tag" title={`Physical format: ${badge.title}`}><badge.Icon size={12}/>{badge.label}</span>}{item.favorite && <span className="art-heart"><Heart size={14} fill="currentColor"/></span>}{item.activity?.status === 'completed' && <span className="art-activity" title={activityLabel(item.kind, 'completed')}><Check size={14}/>{activityLabel(item.kind, 'completed')}</span>}<span className="card-play"><MediaActionIcon item={item} size={23}/></span>{!!item.progress && <Progress className="watch-progress" value={item.progress * 100}/>}</div></button><div className="card-meta"><button data-tv onClick={() => void openItem(item)}>{item.title}</button><span>{item.year || kindNames[item.kind]}<i>·</i>{collectionLabel(item)}</span></div></article>; };
+        next.delete(item.id); return next; })}/><span className="sr-only">Select {item.title}</span></label>}<button data-tv onClick={() => void openItem(item)} className="art-button" aria-label={`Open ${item.title}`}><div className={`artwork kind-${item.kind}`}>{item.poster ? <img src={item.poster} alt="" loading="lazy"/> : <span className="no-art">{(() => { const Icon = icons[item.kind]; return <Icon size={38} strokeWidth={1}/>; })()}<strong>{item.title}</strong></span>}<span className="art-shade"/>{badge && <span className="art-tag" title={`Physical format: ${badge.title}`}><badge.Icon size={12}/>{badge.label}</span>}{item.favorite && <span className="art-heart"><Heart size={14} fill="currentColor"/></span>}{item.activity?.status === 'completed' && <span className="art-activity" title={activityLabel(item.kind, 'completed')}><Check size={14}/>{activityLabel(item.kind, 'completed')}</span>}{!!item.digitalPlatforms?.length && <span className="art-digital-record" title={item.digitalPlatforms.map(record => `${record.platform}: ${{ purchased: 'Purchased', redeemed: 'Redeemed', 'code-included': 'Code included' }[record.status]}`).join(' · ')}>Digital record</span>}<span className="card-play"><MediaActionIcon item={item} size={23}/></span>{!!item.progress && <Progress className="watch-progress" value={item.progress * 100}/>}</div></button><div className="card-meta"><button data-tv onClick={() => void openItem(item)}>{item.title}</button><span>{item.year || kindNames[item.kind]}<i>·</i>{collectionLabel(item)}</span></div></article>; };
     const memoryPhotos = useMemo(() => state.items.filter(item => item.kind === 'photo' && !item.sample && (item.poster || item.backdrop || item.sources.some(source => source.type === 'local' && source.url))), [state.items]);
     const memoryPhoto = !memoryPhotos.length ? null : memoryPhotos[Math.floor(photoSeed * memoryPhotos.length)];
     const memoryPhotoUrl = memoryPhoto?.poster || memoryPhoto?.backdrop || memoryPhoto?.sources.find(source => source.type === 'local' && source.url)?.url;
@@ -1155,19 +1196,19 @@ export default function BlankBox() {
     const homeRows = state.settings.homeRows || defaultHomeRows;
     const homeCategoryRows = useMemo(() => { const kinds: Partial<Record<HomeRow, Kind[]>> = { movies: ['movie'], tv: ['tv'], music: ['music'], photos: ['photo', 'home-video'], books: ['book'], comics: ['comic'], games: ['game'] }; return Object.fromEntries(Object.entries(kinds).map(([id, allowed]) => [id, state.items.filter(item => allowed?.includes(item.kind)).sort((a, b) => mediaAddedAt(b).localeCompare(mediaAddedAt(a))).slice(0, 5)])) as Partial<Record<HomeRow, MediaItem[]>>; }, [state.items]);
     const hasLibrarySource = state.sources.length > 0 || state.items.some(item => !item.sample && item.sources.length > 0) || !!state.settings.jellyfinUrl || !!state.settings.plexUrl;
-    const services = state.settings.streamingServices.length ? allServices.filter(service => state.settings.streamingServices.includes(service.id)) : allServices;
+    const services = configuredServices(state.settings, !state.settings.streamingServices.length);
     const field = (label: string, key: keyof Settings, placeholder: string) => <label className="field"><span>{label}</span><input value={String(form[key])} placeholder={placeholder} onChange={e => setForm({ ...form, [key]: e.target.value })}/></label>;
     const cancelSetup = () => { setForm(state.settings); setOnboarding(false); };
     const completeSetup = (destination: 'home' | 'import' | 'shelf' | 'settings' | 'services', settings: Settings) => { if (destination === 'shelf') {
         go('physical');
-        openPhysicalFor(settings.physicalFormats);
+        openPhysicalFor(settings.physicalFormats, settings);
         return;
     } go(destination); };
     const setupContent = <OnboardingWizard settings={form} mode={state.mode} sources={state.sources} backup={state.backup} busy={busy} editing={state.settings.setupDone} onPersist={persistSettings} onCancel={cancelSetup} onComplete={completeSetup}/>;
     const localMode = true;
     const collectingReady = state.collectionPlanningAvailable === true;
     const physicalBrowsing = view === 'physical' && !query;
-    const visiblePhysicalCandidates = physicalReview && ['household', 'connected'].includes(physicalReviewSource) ? physicalReview.candidates.filter(item => physicalMatchSource(item, physicalReviewSource as 'household' | 'connected') && (item.kind === physicalReview.draft.kind || ['movie', 'tv'].includes(item.kind) && ['movie', 'tv'].includes(physicalReview.draft.kind))) : [];
+    const visiblePhysicalCandidates = physicalReview && (['household', 'connected'].includes(physicalReviewSource) || physicalManualCheck?.signature === physicalMetadataSignature(disc)) ? physicalReview.candidates.filter(item => (physicalManualCheck?.signature === physicalMetadataSignature(disc) || physicalMatchSource(item, physicalReviewSource as 'household' | 'connected')) && (item.kind === physicalReview.draft.kind || ['movie', 'tv'].includes(item.kind) && ['movie', 'tv'].includes(physicalReview.draft.kind))) : [];
     const selectedPackCandidate = physicalReview && physicalMetadata?.signature === physicalMetadataSignature(physicalReview.draft) ? physicalMetadata.candidate : null;
     const packMatchKey = JSON.stringify([selectedPackCandidate?.id, selectedPackCandidate?.title, selectedPackCandidate?.kind, selectedPackCandidate?.year, packMatchRevision]);
     useEffect(() => { if (!state.pagedLibrary || !selectedPackCandidate)
@@ -1186,8 +1227,10 @@ export default function BlankBox() {
         } }}/>}<Toaster position="bottom-right" richColors theme="dark"/></>;
     if (!loaded)
         return <><StartupScreen error={error} onRetry={() => void reload()}/><Toaster position="bottom-right" richColors theme="dark"/></>;
-    return <SidebarProvider open={sidebarOpen} onOpenChange={changeSidebar} style={{ '--sidebar-width': '238px', '--sidebar-width-icon': '70px' } as CSSProperties}><div className={`blank-box-app ${activeTvMode ? 'tv-mode' : ''}`}><Navigation view={view} go={go} state={state}/><div className="main-shell"><header className="topbar" aria-label="Library toolbar"><div className="top-left"><button data-tv type="button" className="navigation-back" onClick={goBack} disabled={historyCount < 2} aria-label="Go back" title="Go back"><ArrowLeft size={18}/></button><div className="topbar-location"><span className="topbar-eyebrow">{state.settings.name}</span><strong className="topbar-title">{navigationLabels[view]}</strong></div></div><div className="top-actions"><label className="search topbar-search"><Search size={18}/><input ref={searchRef} aria-label="Search your library" placeholder="Search your library" value={query} onChange={e => setQuery(e.target.value)}/>{query ? <button type="button" aria-label="Clear search" onClick={() => setQuery('')}><X size={16}/></button> : <kbd>/</kbd>}</label><button data-tv type="button" className="add-button" aria-label="Add media" onClick={() => go('import')}><Plus size={17}/><span>Add media</span></button><NavigationToggle mobileOnly/></div></header>
- <main className="main-content">{state.browseIndexStatus === 'building' && <p className="note" role="status">Preparing library browsing in the background. Your catalog and media remain intact.</p>}{error && <div className="error-banner" role="alert"><Info size={18}/>{error}<button onClick={() => reload()}>Try again</button></div>}{!loaded && !locked && !error ? <div className="loading"><Loader2 className="animate-spin"/>Opening your library…</div> : <>
+    return <SidebarProvider open={sidebarOpen} onOpenChange={changeSidebar} style={{ '--sidebar-width': '238px', '--sidebar-width-icon': '70px' } as CSSProperties}><div className={`blank-box-app ${activeTvMode ? 'tv-mode' : ''}`}><Navigation view={view} go={go} state={state}/><div className="main-shell"><header className="topbar" aria-label="Library toolbar"><div className="top-left"><button data-tv type="button" className="navigation-back" onClick={goBack} disabled={!selected && historyCount < 2} aria-label="Go back" title="Go back"><ArrowLeft size={18}/></button><div className="topbar-location"><span className="topbar-eyebrow">{state.settings.name}</span><strong className="topbar-title">{navigationLabels[view]}</strong></div></div><div className="top-actions"><label className="search topbar-search"><Search size={18}/><input ref={searchRef} aria-label="Search your library" placeholder="Search your library" value={query} onChange={e => { if (selected)
+        setSelected(null); setQuery(e.target.value); }}/>{query ? <button type="button" aria-label="Clear search" onClick={() => setQuery('')}><X size={16}/></button> : <kbd>/</kbd>}</label><button data-tv type="button" className="add-button" aria-label="Add media" onClick={() => go('import')}><Plus size={17}/><span>Add media</span></button><NavigationToggle mobileOnly/></div></header>
+ <main className="main-content">{state.browseIndexStatus === 'building' && <p className="note" role="status">Preparing library browsing in the background. Your catalog and media remain intact.</p>}{error && <div className="error-banner" role="alert"><Info size={18}/>{error}<button onClick={() => reload()}>Try again</button></div>} {selected && <MediaItemDialog key={selected.id} item={selected} opticalDrive={state.settings.opticalDrive} onActivityChange={() => void reload()} streamingServices={state.settings.streamingServices} serviceLinks={configuredServices(state.settings)} retailEnabled={collectingReady} metadataEnabled={true} busy={busy} playable={!!playUrl(selected) || selected.kind === 'photo' && !!selected.poster} playLabel={playLabel(selected)} refreshable={selected.sources.some(source => ['jellyfin', 'plex'].includes(source.type))} onBack={closeItem} onPlay={() => play(selected)} onPlaySource={source => playSource(selected, source)} onRemoveSource={source => void removeSource(selected, source)} onRefresh={() => void refreshItem(selected)} onFavorite={() => favorite(selected)} onEdit={focus => openEditor(selected, 'detail', focus)} onAddPhysical={!selected.sample && physicalFormats.some(format => physicalKindOptions(format).includes(selected.kind)) ? () => openPhysicalForItem(selected) : undefined} onRemove={removeSelected}/>}
+ <div className="library-page-content">{!loaded && !locked && !error ? <div className="loading"><Loader2 className="animate-spin"/>Opening your library…</div> : <>
  {!query && view === 'collections' && <CollectionBrowser state={state} renderItem={card} onChange={async () => { await reload(); }} onPlan={() => go('collecting')}/>}
  {!libraryView && view === 'home' && state.browseIndexStatus !== 'building' && <><div className="page-heading home-heading"><h1>Welcome{state.profile?.username ? `, ${state.profile.username}` : ''}</h1><button data-tv className="text-button home-customize" aria-label="Customize Home" title="Customize Home" onClick={customizeHome}><Settings2 size={16}/><span>Customize Home</span></button></div>
 
@@ -1238,7 +1281,7 @@ export default function BlankBox() {
   {scanRows.some(file => file.candidates?.length) && <label className="field import-policy"><span>When a title already exists</span><Select value={importPolicy} onValueChange={value => setImportPolicy(value as ImportPolicy)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="review">Review matches one by one</SelectItem><SelectItem value="keep">Consolidate; keep Blank Box details</SelectItem><SelectItem value="incoming">Consolidate; use incoming details</SelectItem><SelectItem value="new-version">Add as new editions</SelectItem><SelectItem value="separate">Keep as different titles</SelectItem></SelectContent></Select><small>{importPolicy === 'review' ? 'Possible matches will wait in a durable review list.' : importPolicy === 'keep' ? 'Incoming sources join the existing edition; owner edits remain protected.' : importPolicy === 'incoming' ? 'Incoming metadata replaces non-owner fields when available.' : importPolicy === 'new-version' ? 'Incoming files become additional editions beneath the matching title.' : 'No title-based consolidation will occur.'}</small></label>}
   <button className="primary-button" onClick={commit} disabled={busy || !!activeJobs.length || !selectedScanRows.length}><ArrowDownToLine size={17}/>Copy {selectedScanRows.length} selected files</button>
  </section>}
- {<div id="import-disc"><DiscImport items={state.items} pagedLibrary={state.pagedLibrary} jobs={state.jobs} blocked={busy || !!activeJobs.length} preferredDrive={state.settings.opticalDrive} onStarted={reload} onCataloged={item => { go('physical'); setSelected(item); }} onCatalogPhysical={() => { setCameraEntryActive(false); setPhysicalIntakeTarget(null); physicalStart.current = { ...emptyPhysicalDraft, format: 'CD', kind: 'music' }; setDisc(physicalStart.current); setPhysicalManual(false); setAddDisc(true); }} onScanPhysical={() => setCameraIntakeOpen(true)} onManagePacks={() => { setSettingsTab('metadata'); go('settings'); window.setTimeout(() => document.getElementById('metadata-pack-settings')?.scrollIntoView({ behavior: 'smooth' }), 0); }}/></div>}
+ {<div id="import-disc"><DiscImport items={state.items} pagedLibrary={state.pagedLibrary} jobs={state.jobs} blocked={busy || !!activeJobs.length} preferredDrive={state.settings.opticalDrive} onStarted={reload} onCataloged={item => { go('physical'); setSelected(item); }} onCatalogPhysical={openPhysicalCd} onScanPhysical={() => setCameraIntakeOpen(true)} onManagePacks={() => { setSettingsTab('metadata'); go('settings'); window.setTimeout(() => document.getElementById('metadata-pack-settings')?.scrollIntoView({ behavior: 'smooth' }), 0); }}/></div>}
  <ReconciliationPanel reviews={state.reviews} reviewCount={state.reviewCount} busy={busy} onResolve={(reviewId, policy, targetId) => void resolveReview(reviewId, policy, targetId)} onResolveAll={policy => void resolveAllReviews(policy)}/>
  <ImportActivity jobs={state.jobs}/><div className="note"><Info size={19}/><p>{'Indexing leaves your source media in place. Managed copying handles selected files after count and size review. Audio-CD import remains a distinct Alpha path; protected DVD and Blu-ray copying or Live Disc playback are not included.'}</p></div></>}
  {!query && view === 'services' && <><div className="page-heading"><div><h1>Services & Connections</h1><p>Your personal collection and the services you enjoy, within reach.</p></div></div><h2 className="standalone-heading">Your home services</h2><div className="home-service-grid">{homeServices.map(s => <div className="home-service" key={s.name}><span className="source-icon peach"><s.icon size={24}/></span><div><h2>{s.name}</h2><p>{s.description}</p></div>{safeUrl(state.settings[s.key] as string) ? <a className="subtle-button" href={safeUrl(state.settings[s.key] as string)} target="_blank" rel="noopener noreferrer">Open<ArrowUpRight size={16}/></a> : <button className="subtle-button" onClick={() => { setSettingsTab('connections'); go('settings'); }}>Connect<Plus size={16}/></button>}</div>)}</div><h2 className="standalone-heading">Streaming & entertainment</h2><div className="services-grid">{services.map(s => <a data-tv className="service-tile" href={s.url} target="_blank" rel="noopener noreferrer" key={s.name}><span className="service-wordmark" style={{ color: s.color }}>{s.mark}</span><div><strong>{s.name}</strong><ArrowUpRight size={18}/></div><small>Open official website</small></a>)}</div><div className="note"><ArrowUpRight size={19}/><p>Services open in their own websites. Their subscriptions, sign-ins, and device support still apply. Blank Box does not import their catalogs or viewing history.</p></div></>}
@@ -1260,14 +1303,18 @@ export default function BlankBox() {
                 return; event.preventDefault(); const tabs = settingsTabs.filter(tab => true || !['devices', 'metadata'].includes(tab.id)); const index = tabs.findIndex(tab => tab.id === settingsTab); const next = event.key === 'Home' ? tabs[0] : event.key === 'End' ? tabs[tabs.length - 1] : tabs[(index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length]; setSettingsTab(next.id); requestAnimationFrame(() => document.getElementById(`settings-tab-${next.id}`)?.focus()); }}>{settingsTabs.filter(tab => true || !['devices', 'metadata'].includes(tab.id)).map(tab => { const Icon = tab.icon; return <button key={tab.id} id={`settings-tab-${tab.id}`} type="button" role="tab" aria-selected={settingsTab === tab.id} aria-controls={`settings-panel-${tab.id}`} tabIndex={settingsTab === tab.id ? 0 : -1} className={settingsTab === tab.id ? 'active' : ''} onClick={() => setSettingsTab(tab.id)}><Icon size={17}/>{tab.label}</button>; })}</nav>
   <div id={`settings-panel-${settingsTab}`} role="tabpanel" aria-labelledby={`settings-tab-${settingsTab}`} className="settings-layout settings-tab-content">
     {settingsTab === 'general' && <section className="panel"><h2>Your household</h2>{field('Library name', 'name', 'Your household')}{!isMobile && <div className="setting-row"><span><strong>TV mode</strong><small>Enlarges the interface and adds remote-friendly focus.</small></span><Switch checked={activeTvMode} aria-label="TV mode" onCheckedChange={toggleTvMode}/></div>}<div className="setting-row"><span><strong>Helpful tips</strong><small>Short, dismissible explanations on import and physical collection screens.</small></span><Switch checked={form.helpTipsEnabled} aria-label="Show helpful tips" onCheckedChange={helpTipsEnabled => setForm({ ...form, helpTipsEnabled })}/></div><div className="settings-actions"><button className="primary-button" disabled={busy || !form.name.trim()} onClick={() => saveSettings()}>Save household <Check size={17}/></button><button className="text-button" onClick={() => { setForm(state.settings); setOnboarding(true); }}>Run setup again <ChevronRight size={16}/></button></div></section>}
+    {settingsTab === 'general' && <OIDCAccountSettings />}
     {settingsTab === 'connections' && <details className="settings-disclosure" open><summary><span><strong>Service connections</strong><small>Jellyfin, Plex, Immich, and private access</small></span><ChevronDown size={18}/></summary><div className="settings-disclosure-body"><p className="muted small">Connect catalogs you already operate. Blank Box remains the ownership layer and opens playback in the source service. <a href="/downloads/guides/PLAYBACK.md" target="_blank" rel="noopener noreferrer">New to Jellyfin or Plex? Read the playback guide.</a> <a href="/downloads/guides/CONNECTION-KEYS.md" target="_blank" rel="noopener noreferrer">How to get a Jellyfin API key or Plex token.</a></p>{field('Jellyfin address', 'jellyfinUrl', 'http://blank-box:8096')}{field('Plex server address', 'plexUrl', 'http://blank-box:32400')}{field('Immich address', 'immichUrl', 'http://blank-box:2283')}{field('Private remote address', 'remoteUrl', 'https://remote.example.com')}<button className="primary-button" disabled={busy} onClick={() => saveSettings()}>Save connections <Check size={17}/></button>{<><div className="connection-extra"><h3>Bring in your Jellyfin catalog</h3><p className="muted small">Read movie, series, and music metadata. Playback opens Jellyfin. The key stays in Blank Box.</p><label className="field"><span>Jellyfin API key</span><input type="password" autoComplete="off" value={jellyKey} onChange={e => setJellyKey(e.target.value)} placeholder="Create a key in the Jellyfin dashboard"/></label><a className="text-button connection-key-guide" href="/downloads/guides/CONNECTION-KEYS.md" target="_blank" rel="noopener noreferrer">How to create a Jellyfin API key <ArrowUpRight size={14}/></a><button className="subtle-button" disabled={busy || !form.jellyfinUrl || !jellyKey} onClick={async () => { const v = await act('jellyfin', { url: form.jellyfinUrl, key: jellyKey }, 'Jellyfin catalog added'); if (v)
                 setJellyKey(''); }}>Sync Jellyfin <RefreshCw size={16}/></button></div><div className="connection-extra"><h3>Bring in your Plex catalog</h3><p className="muted small">Read movie, series, and album metadata. Playback opens Plex. The token stays in Blank Box and is excluded from portable backups.</p><label className="field"><span>Plex token</span><input type="password" autoComplete="off" value={plexKey} onChange={e => setPlexKey(e.target.value)} placeholder="Use a token from your Plex account"/></label><a className="text-button connection-key-guide" href="/downloads/guides/CONNECTION-KEYS.md" target="_blank" rel="noopener noreferrer">How to find a Plex token <ArrowUpRight size={14}/></a><button className="subtle-button" disabled={busy || !form.plexUrl || !plexKey} onClick={async () => { const v = await act('plex', { url: form.plexUrl, key: plexKey }, 'Plex catalog added'); if (v)
                 setPlexKey(''); }}>Sync Plex <RefreshCw size={16}/></button></div></>}</div></details>}
+    {settingsTab === 'connections' && <><StreamingServicesEditor value={form} onChange={setForm}/><button className="primary-button" disabled={busy} onClick={() => void saveSettings()}>Save settings</button></>}
     {settingsTab === 'collection' && <section className="panel"><h2>Automatic library refresh</h2><p className="muted small">Connected catalogs can refresh without copying media. Configured folders can be checked automatically for new or changed files. Files stay in place, and matches require review.</p><div className="setting-row"><span><strong>Refresh connected catalogs</strong><small>Update Jellyfin and Plex metadata without copying media files.</small></span><Switch checked={form.autoProviderRefresh} aria-label="Refresh connected catalogs automatically" onCheckedChange={v => setForm({ ...form, autoProviderRefresh: v })}/></div><div className="setting-row"><span><strong>Monitor configured media folders</strong><small>Check movies, TV, music, books, comics, photos, and files in place. New or changed files need two stable observations at least a minute apart, then appear in Import Media for review. Missing drives keep their catalog links.</small></span><Switch checked={form.autoSourceIndex} aria-label="Monitor configured media folders" onCheckedChange={v => setForm({ ...form, autoSourceIndex: v })}/></div><div className="setting-row"><span><strong>Find personal files for optional local copies</strong><small>Discover stable photos, home videos, and files for a managed playback copy on primary storage. Backup-drive copies are selected directly in Import Media.</small></span><Switch checked={form.autoFolderCopy} aria-label="Find personal files for optional local copies" onCheckedChange={v => setForm({ ...form, autoFolderCopy: v, autoImport: v })}/></div><label className="field"><span>Check every <small>minutes</small></span><input type="number" min="1" max="1440" value={form.autoImportMinutes} onChange={e => setForm({ ...form, autoImportMinutes: Number(e.target.value) })}/></label><button className="primary-button" disabled={busy || !form.name.trim() || form.autoImportMinutes < 1 || form.autoImportMinutes > 1440} onClick={() => saveSettings()}>Save refresh settings <Check size={17}/></button></section>}
     {settingsTab === 'devices' && <OpticalDriveSettings value={form.opticalDrive} busy={busy} onChange={opticalDrive => setForm(current => ({ ...current, opticalDrive }))} onSave={() => void saveSettings()} onImport={() => { go('import'); window.setTimeout(() => document.getElementById('disc-import')?.scrollIntoView({ behavior: 'smooth' }), 0); }}/>}
     {settingsTab === 'metadata' && <MetadataPackManager />}
     {settingsTab === 'general' && <SidebarCustomization settings={form} busy={busy} onChange={setForm} onSave={() => void saveSettings()}/>}
+    {settingsTab === 'general' && <OIDCAccountSettings />}
     {settingsTab === 'general' && <details className="settings-disclosure" open><summary><span><strong>Customize Home</strong><small>Featured covers, category rows, and their order</small></span><ChevronDown size={18}/></summary><HomeCustomization settings={form} busy={busy} onChange={setForm} onSave={() => void saveSettings()}/></details>}
+    {settingsTab === 'general' && <OIDCAccountSettings />}
     {settingsTab === 'activity' && <ImportActivity jobs={state.jobs}/>}
     {settingsTab === 'activity' && <details className="settings-disclosure" open><summary><span><strong>Complete recovery points</strong><small>Catalog, managed media, and installed offline packs together</small></span><ChevronDown size={18}/></summary><div className="settings-disclosure-body"><p className="muted small">Create a complete recovery point on your configured backup drive. The update installer still makes its own paired maintenance snapshot. To copy indexed photos, home videos, or personal files to the backup drive, use the separate, confirmed Import action. Linked source-drive originals remain in place.</p><div className="inline-form"><button className="subtle-button" disabled={!state.backup.configured || busy || !!activeJobs.length} onClick={() => void act('full-recovery', {}, 'Complete recovery point started')}><ShieldCheck size={16}/>Create recovery point</button><button className="subtle-button" disabled={!state.backup.configured || recoveryLoading} onClick={() => void loadRecoveryPoints()}><RefreshCw size={16}/>Find recovery points</button></div>{!state.backup.configured && <p className="muted small">Configure a separate backup destination in Storage & Backup first.</p>}{recoveryPoints.map(point => <div className="setting-row" key={point.id}><span><strong>{new Date(point.createdAt).toLocaleString()}</strong><small>Recovery point {point.id}</small></span><button className="subtle-button" disabled={busy || !!activeJobs.length} onClick={() => void prepareRecovery(point.id)}>Prepare full restore</button></div>)}{state.jobs.filter(job => ['full-recovery', 'prepare-full-restore'].includes(job.type)).map(job => <p className="muted small" key={job.id}>{job.type === 'full-recovery' ? 'Recovery point' : 'Restore preparation'} · {job.status}: {job.message}</p>)}<p className="muted small">A restore is prepared in a new empty review directory; it does not replace the running library. Review it before a deliberate offline switch. Read the <a href="/downloads/START-HERE.md" target="_blank" rel="noopener noreferrer">setup and recovery guide</a>.</p></div></details>}
     {settingsTab === 'activity' && <details className="settings-disclosure"><summary><span><strong>Restore saved provider covers</strong><small>After moving a library to another computer</small></span><ChevronDown size={18}/></summary><div className="settings-disclosure-body"><p className="muted small">Portable recovery keeps saved titles, uploaded covers, and Plex/Jellyfin addresses, but excludes their private keys. Reconnect each provider in Service connections if its address or key changed. Then use this action to fill missing covers from saved provider artwork. It leaves uploaded covers, other title details, and metadata source choices alone.</p><button className="subtle-button" disabled={busy || !!activeJobs.length} onClick={() => void restoreMissingCovers()}><RefreshCw size={16}/>Restore missing covers</button>{state.jobs.filter(job => job.type === 'restore-provider-covers').map(job => <p className="muted small" key={job.id}>Cover restoration · {job.status}: {job.message}</p>)}</div></details>}
@@ -1278,20 +1325,27 @@ export default function BlankBox() {
  {settingsTab === 'collection' && <PhysicalOrganizationSettings settings={form} items={state.items} locationsSummary={state.facets?.locations} busy={busy} onChange={setForm} onSave={() => void saveSettings()} onMove={movePhysicalLocation}/>}
  {settingsTab === 'connections' && state.hiddenItems > 0 && <details className="settings-disclosure settings-wide-disclosure hidden-items-disclosure"><summary><span><strong>{state.hiddenItems} hidden connected {state.hiddenItems === 1 ? 'item' : 'items'}</strong><small>Review or restore individual records. Jellyfin and Plex are not changed.</small></span><ChevronDown size={18}/></summary><div className="hidden-items-body"><div className="hidden-items-list">{(state.hiddenRecords || []).map(record => <div className="hidden-item-row" key={record.id}><span><strong>{record.title}</strong><small>{record.source} · {kindNames[record.kind as Kind] || record.kind}{record.hiddenAt ? ` · Hidden ${new Date(record.hiddenAt).toLocaleDateString()}` : ''}</small></span><button className="subtle-button" disabled={busy} onClick={() => void act('restore-hidden', { id: record.id }, 'Connected item restored')}>Restore</button></div>)}</div>{state.pagedLibrary && state.hiddenItems > 50 && <div className="collection-paging"><button disabled={!hiddenOffset} onClick={() => setHiddenOffset(Math.max(0, hiddenOffset - 50))}>Previous</button><span>{hiddenOffset + 1}–{Math.min(hiddenOffset + 50, state.hiddenItems)} of {state.hiddenItems}</span><button disabled={hiddenOffset + 50 >= state.hiddenItems} onClick={() => setHiddenOffset(hiddenOffset + 50)}>Next</button></div>}<button className="text-button" disabled={busy} onClick={() => { if (window.confirm(`Restore all ${state.hiddenItems} hidden connected items to your library?`))
                 void act('restore-hidden', {}, 'Hidden connected items restored'); }}>Restore all hidden items</button></div></details>}
+    {settingsTab === 'connections' && <><StreamingServicesEditor value={form} onChange={setForm}/><button className="primary-button" disabled={busy} onClick={() => void saveSettings()}>Save settings</button></>}
   </div>
  </>}
  {!!activeJobs.length && view !== 'import' && view !== 'storage' && <button className="job-toast" onClick={() => go(activeJobs[0].type === 'backup' ? 'storage' : 'import')}><Loader2 size={16} className="animate-spin"/><span>{activeJobs[0].message || 'Blank Box is working…'}</span><ChevronRight size={16}/></button>}
  </>}
- </main></div></div>
+ </div></main></div></div>
  <Dialog open={libraryAttachRows.length > 0} onOpenChange={open => { if (!open && !busy) {
         setLibraryAttachRows([]);
         setLibraryAttachTarget(null);
         setLibraryAttachError('');
     } }}><DialogContent className="form-dialog inventory-review-dialog"><DialogHeader><DialogTitle>Attach selected titles to one Media Item</DialogTitle><DialogDescription>Use this for stray tracks or episodes that already became separate library titles. The chosen title keeps its ID and details. Originals stay on their drives.</DialogDescription></DialogHeader><p className="muted small">{libraryAttachRows.length} selected on this page. Only simple linked file records can be consolidated here; owner edits and extra editions need individual review.</p><div className="inventory-selected-paths"><ul>{libraryAttachRows.map(item => <li key={item.id}>{item.title} · {item.id}</li>)}</ul></div><form className="match-search" onSubmit={event => { event.preventDefault(); void searchLibraryAttach(); }}><label><Search size={17}/><input value={libraryAttachQuery} maxLength={200} onChange={event => setLibraryAttachQuery(event.target.value)} placeholder="Search for the destination show or album" aria-label="Search destination title"/></label><button className="subtle-button" disabled={busy || !libraryAttachQuery.trim()} type="submit">Search library</button></form><div className="inventory-candidates">{libraryAttachResults.map(item => <label key={item.id}><input type="radio" name="library-attach-target" checked={libraryAttachTarget?.id === item.id} onChange={() => setLibraryAttachTarget(item)}/><span>{item.title}{item.year ? ` (${item.year})` : ''}<small>{kindNames[item.kind]} · Media Item {item.id}</small></span></label>)}{!libraryAttachResults.length && <p className="muted small">Search for the title that should remain in your library. It may be one of the selected titles.</p>}</div>{libraryAttachError && <p role="alert" className="error-text">{libraryAttachError}</p>}<button className="primary-button" disabled={busy || !libraryAttachTarget || libraryAttachRows.filter(item => item.id !== libraryAttachTarget.id).length === 0} onClick={() => void attachLibrarySelection()}>Attach {libraryAttachRows.filter(item => item.id !== libraryAttachTarget?.id).length} to {libraryAttachTarget?.title || 'chosen title'}</button></DialogContent></Dialog>
  <Dialog open={sourceReviewOpen} onOpenChange={setSourceReviewOpen}><DialogContent className="form-dialog reconciliation-dialog"><DialogHeader><DialogTitle>We found possible matches</DialogTitle><DialogDescription>Review them now, or leave them safely in Import Media for later.</DialogDescription></DialogHeader><ReconciliationPanel reviews={state.reviews} reviewCount={state.reviewCount} busy={busy} onResolve={(reviewId, policy, targetId) => void resolveReview(reviewId, policy, targetId, true)} onResolveAll={policy => void resolveAllReviews(policy, true)}/><button className="subtle-button decide-later" onClick={() => { setSourceReviewOpen(false); toast.info('Possible matches saved in Import Media.'); }}>Decide later</button></DialogContent></Dialog>
- {selected && <MediaDetailDialog key={selected.id} item={selected} opticalDrive={state.settings.opticalDrive} onActivityChange={() => void reload()} streamingServices={state.settings.streamingServices} retailEnabled={collectingReady} metadataEnabled={true} busy={busy} playable={!!playUrl(selected) || selected.kind === 'photo' && !!selected.poster} playLabel={playLabel(selected)} refreshable={selected.sources.some(source => ['jellyfin', 'plex'].includes(source.type))} onClose={() => setSelected(null)} onPlay={() => play(selected)} onPlaySource={source => playSource(selected, source)} onRemoveSource={source => void removeSource(selected, source)} onRefresh={() => void refreshItem(selected)} onFavorite={() => favorite(selected)} onEdit={() => { setSelected(null); openEditor(selected, 'detail'); }} onRemove={removeSelected}/>}
- {catalogEditor && <CatalogEditorDialog key={`${catalogEditor.id}-${catalogEditor.metadataMatch?.matchedAt || ''}-${editorRevision}`} item={catalogEditor} genreSuggestions={state.facets?.genres || [...new Set(state.items.flatMap(item => item.customGenres || []))]} busy={busy} onClose={closeEditor} onMatch={() => openMatch(catalogEditor, catalogEditor.title)} onAddPhysical={editorOrigin === 'detail' ? () => openPhysicalForItem(catalogEditor) : undefined} backLabel={editorOrigin === 'intake' ? 'Back to import choices' : 'Back to media details'} onBack={backFromEditor} onSave={edit => saveMetadata(catalogEditor, edit)} onChooseMetadata={sourceId => chooseEditorMetadata(catalogEditor, sourceId)} onRefreshMetadata={() => refreshEditorMetadata(catalogEditor)} onUploadArtwork={image => uploadEditorArtwork(catalogEditor, image)} onRemoveArtwork={() => removeEditorArtwork(catalogEditor)}/>}
- {matchOpen && <MetadataMatchDialog key={matchSeed} open target={matchTarget} initialQuery={matchTarget?.title || query} streamingServices={state.settings.streamingServices} busy={busy} onOpenChange={setMatchOpen} onBackToChoices={editorOrigin === 'intake' && intakeChoice ? () => { setMatchOpen(false); if (catalogEditor)
+
+ {catalogEditor && !matchOpen && <CatalogEditorDialog key={`${catalogEditor.id}-${catalogEditor.metadataMatch?.matchedAt || ''}-${editorRevision}`} item={catalogEditor} focus={editorFocus} onRestoreFocus={() => { if (document.querySelector('[role="dialog"]:not(.media-item-dialog)'))
+        return; if (editorTrigger.current?.isConnected)
+        editorTrigger.current.focus({ preventScroll: true });
+    else
+        document.getElementById('media-item-title')?.focus({ preventScroll: true }); }} genreSuggestions={state.facets?.genres || [...new Set(state.items.flatMap(item => item.customGenres || []))]} busy={busy} onClose={closeEditor} onMatch={() => openMatch(catalogEditor, catalogEditor.title)} onAddPhysical={editorOrigin === 'detail' ? () => openPhysicalForItem(catalogEditor) : undefined} backLabel={editorOrigin === 'intake' ? 'Back to import choices' : 'Back to media details'} onBack={backFromEditor} onSave={edit => saveMetadata(catalogEditor, edit)} onChooseMetadata={sourceId => chooseEditorMetadata(catalogEditor, sourceId)} onRefreshMetadata={() => refreshEditorMetadata(catalogEditor)} onUploadArtwork={image => uploadEditorArtwork(catalogEditor, image)} onRemoveArtwork={() => removeEditorArtwork(catalogEditor)} onGalleryChanged={item => { setCatalogEditor(item); if (selected?.id === item.id)
+        setSelected(item); if (editorFocus.section !== 'artwork')
+        setEditorRevision(value => value + 1); void reload(); }}/>}
+ {matchOpen && <MetadataMatchDialog key={matchSeed} open target={matchTarget} initialQuery={matchTarget?.title || query} streamingServices={state.settings.streamingServices} serviceLinks={configuredServices(state.settings)} busy={busy} onOpenChange={setMatchOpen} onBackToChoices={editorOrigin === 'intake' && intakeChoice ? () => { setMatchOpen(false); if (catalogEditor)
         backFromEditor();
     else
         setJustAddedPhysical(intakeChoice); } : undefined} onSearch={searchMatches} onApply={applyMatch} onOpenItem={item => void openItem(item)} onReferenceConfirm={matchTarget ? async (entityId) => { setBusy(true); try {
@@ -1299,7 +1353,7 @@ export default function BlankBox() {
         if (item) {
             setCatalogEditor(item);
             setEditorRevision(revision => revision + 1);
-            setSelected(null);
+            setSelected(item);
         }
         await reload();
         toast.success('Title matched and available details filled.');
@@ -1312,37 +1366,28 @@ export default function BlankBox() {
             <LocalMediaPlayer key={`${playing.id}:${playUrl(playing)}`} item={playing} source={preferredPlaybackSource(playing)} url={playUrl(playing)} alternatives={playbackAlternatives} onProgress={progress => { const source = preferredPlaybackSource(playing); const audiobook = playing.kind === 'book' && source?.id && isAudiobookSource(source); void blankBoxClient.action(audiobook ? 'update-source-progress' : 'update', audiobook ? { id: playing.id, sourceId: source.id, progress } : { id: playing.id, progress }).then(() => reload()).catch(() => toast.error('Playback progress could not be saved.')); }}/>)}</DialogContent></Dialog>
  <Dialog open={rightsOpen} onOpenChange={open => { setRightsOpen(open); if (!open)
         pendingPlayback.current = null; }}><DialogContent className="form-dialog"><DialogHeader><DialogTitle>Before using your media</DialogTitle><DialogDescription>This acknowledgement is saved once for your household.</DialogDescription></DialogHeader><MediaRightsChoice accepted={rightsAccepted} onChange={setRightsAccepted}/><button className="primary-button" disabled={busy || !rightsAccepted} onClick={() => void acceptMediaRights()}>Agree and continue</button><button className="text-button" onClick={() => { setRightsOpen(false); pendingPlayback.current = null; }}>Later</button></DialogContent></Dialog>
- {addDisc && <AddPhysicalDialog open busy={busy} draft={disc} manual={physicalManual} formats={!intakeFormats.includes(disc.format) ? [disc.format, ...intakeFormats] : intakeFormats} locations={physicalLocations} gamePlatforms={gamePlatforms} onOpenChange={open => { if (!open)
-        closePhysicalDraft(); }} onChange={setDisc} onSaveLocation={savePhysicalLocation} onSaveFormats={saveVisiblePhysicalFormats} onSavePlatforms={saveVisibleGamePlatforms} onFindMatch={() => void reviewPhysical()} onManual={() => setPhysicalManual(true)} onContinue={() => void reviewPhysical()}/>}
- <Dialog open={!!physicalReview} onOpenChange={open => { if (!open)
-        closePhysicalDraft(); }}><DialogContent ref={physicalReviewDialogRef} className="form-dialog duplicate-review-dialog">
-  <DialogHeader><DialogTitle>{physicalChoice ? 'How does this item fit?' : 'Review the physical item'}</DialogTitle><DialogDescription>{physicalChoice ? 'Choose an existing edition or make a separate edition. Nothing changes until you add the item.' : 'Choose where to look for a title. This item is still a draft and is not in your collection.'}</DialogDescription></DialogHeader>
+ {addDisc && <AddPhysicalDialog open busy={busy} draft={disc} defaults={form.physicalDefaultFormats || {}} formats={!intakeFormats.includes(disc.format) ? [disc.format, ...intakeFormats] : intakeFormats} locations={physicalLocations} gamePlatforms={gamePlatforms} onOpenChange={open => { if (!open)
+            closePhysicalDraft(); }} onChange={changePhysicalReviewDraft} onSaveLocation={savePhysicalLocation} onSaveFormats={saveVisiblePhysicalFormats} onSavePlatforms={saveVisibleGamePlatforms} onSaveDefault={saveDefaultPhysicalFormat} onContinue={() => void addManualPhysical()}>
   {physicalReview && !physicalChoice && <>
-   <p className="muted small">Physical item: <strong>{physicalReview.draft.title}</strong> · {physicalReview.draft.format}{physicalReview.draft.edition ? ` · ${physicalReview.draft.edition}` : ''}{physicalReview.draft.location ? ` · ${physicalReview.draft.location}` : ''}</p>
+   <section className="physical-review-search" aria-label="Find a matching title">
+    <div className="physical-match-heading"><strong>Search for a title</strong><small>Choose where to look, then review a result before attaching this copy.</small></div>
+    <div className="physical-review-sources" role="group" aria-label="Where to match this item">
+     <button type="button" className={physicalReviewSource === 'household' ? 'selected' : ''} aria-pressed={physicalReviewSource === 'household'} disabled={busy} onClick={() => { setPhysicalReviewSource('household'); }}><HardDrive size={17}/><span><strong>My Library</strong><small>All saved titles, including connected libraries</small></span></button>
+     <button type="button" className={physicalReviewSource === 'packs' ? 'selected' : ''} aria-pressed={physicalReviewSource === 'packs'} disabled={busy} onClick={() => { setPhysicalReviewSource('packs'); }}><Search size={17}/><span><strong>Blank Box Database</strong><small>Search reference titles installed on this box</small></span></button>
+     <button type="button" className={physicalReviewSource === 'connected' ? 'selected' : ''} aria-pressed={physicalReviewSource === 'connected'} disabled={busy} onClick={() => { setPhysicalReviewSource('connected'); }}><Server size={17}/><span><strong>Connected libraries</strong><small>Synced Jellyfin and Plex titles</small></span></button>
+    </div>
+    <div className="physical-search-actions">
+    <button type="button" className="text-button physical-default-save" disabled={busy || (form.physicalTitleSearchSource || 'packs') === physicalReviewSource} onClick={() => void savePhysicalSearchDefault()}>{(form.physicalTitleSearchSource || 'packs') === physicalReviewSource ? 'Your default title search' : 'Use this search as my default'}</button>
+    {(physicalReviewSource === 'household' || physicalReviewSource === 'connected') && <button type="button" className="subtle-button" disabled={busy || !disc.title.trim()} onClick={() => void searchPhysicalLibrary()}><Search size={17}/>Search {physicalReviewSource === 'connected' ? 'connected libraries' : 'My Library'}</button>}
+    </div>
+   </section>
    {visiblePhysicalCandidates.length > 0 && <div className="duplicate-candidates"><div className="physical-match-heading"><strong>Possible match or duplicate in your library</strong><small>{visiblePhysicalCandidates.length} existing {visiblePhysicalCandidates.length === 1 ? 'title' : 'titles'} found. Choose one to add this copy under it.</small></div>
     {visiblePhysicalCandidates.map(item => <article key={item.id} className="duplicate-candidate"><Library size={19}/><span><strong>{item.title}</strong><small>{[item.year, kindNames[item.kind], item.sources.filter(source => source.type === 'physical').map(source => source.label).join(' · '), item.sources.filter(source => ['jellyfin', 'plex'].includes(source.type)).map(source => source.label).join(' · ')].filter(Boolean).join(' · ')}</small></span><button className="subtle-button" disabled={busy} onClick={() => { const versions = matchingPhysicalVersions(item, physicalReview.draft); setPhysicalChoice({ item, mode: versions.length ? null : 'new', versionId: versions[0]?.id || '' }); }}>Add copy to this title<ChevronRight size={16}/></button></article>)}
    </div>}
    {physicalReviewSource === 'packs' && packHouseholdMatches.length > 0 && <div className="duplicate-candidates"><div className="physical-match-heading"><strong>Possible match in your library</strong><small>Add this copy to an existing title to keep its physical copies and digital playback sources together.</small></div>
     {packHouseholdMatches.map(item => <article key={item.id} className="duplicate-candidate"><Library size={19}/><span><strong>{item.title}</strong><small>{[item.year, kindNames[item.kind], selectedPackCandidate?.householdItemIds?.includes(item.id) ? 'Already linked to this reference' : 'Possible title match', item.sources.filter(source => source.type === 'physical').length + ' physical copies', item.sources.some(source => ['jellyfin', 'plex'].includes(source.type)) ? 'Connected playback' : ''].filter(Boolean).join(' · ')}</small></span><button className="subtle-button" disabled={busy} onClick={() => { const versions = matchingPhysicalVersions(item, physicalReview.draft); setPhysicalChoice({ item, mode: versions.length ? null : 'new', versionId: versions[0]?.id || '', metadataEntityId: physicalMetadata?.id }); }}>Add copy to this title<ChevronRight size={16}/></button></article>)}
    </div>}
-   {physicalReviewSource === 'packs' && <section className="physical-pack-search" aria-label="Blank Box Database matches"><div className="physical-match-heading"><strong>Blank Box Database matches</strong><small>Search installed Offline Metapacks. A title match alone does not prove an edition.</small></div><MetadataCandidateReview key={physicalMetadataSignature(physicalReview.draft)} title={physicalReview.draft.title} kind={physicalReview.draft.kind} year={physicalReview.draft.year ? Number(physicalReview.draft.year) : null} identifier={physicalReview.draft.barcode.trim() ? { namespace: physicalReview.draft.kind === 'book' ? 'isbn' : 'upc-ean', value: physicalReview.draft.barcode.trim() } : undefined} selectedId={physicalMetadata?.signature === physicalMetadataSignature(physicalReview.draft) ? physicalMetadata.id : ''} onSelect={(id, candidate) => { setPhysicalMetadata(id ? { id, signature: physicalMetadataSignature(physicalReview.draft), candidate } : null); setSeparatePhysicalConfirmed(false); setPackMatchLookup(null); setPackMatchRevision(value => value + 1); if (id)
-            scrollPhysicalReviewToTop(); }} onSearchComplete={scrollPhysicalReviewToTop} sourceScope="packs" targetLevel="any" releaseRequiresIdentifier disabled={busy}/></section>}
-   <section className="physical-review-search" aria-label="Find a matching title">
-    <div className="physical-match-heading"><strong>Search for a title</strong><small>Choose where to look, then review a result before attaching this copy.</small></div>
-    <div className="physical-review-sources" role="group" aria-label="Where to match this item">
-     <button type="button" className={physicalReviewSource === 'household' ? 'selected' : ''} aria-pressed={physicalReviewSource === 'household'} onClick={() => { setPhysicalReviewSource('household'); scrollPhysicalReviewToTop(); }}><HardDrive size={17}/><span><strong>My Library</strong><small>All saved titles, including connected libraries</small></span></button>
-     <button type="button" className={physicalReviewSource === 'packs' ? 'selected' : ''} aria-pressed={physicalReviewSource === 'packs'} onClick={() => { setPhysicalReviewSource('packs'); scrollPhysicalReviewToTop(); }}><Search size={17}/><span><strong>Search Blank Box Database</strong><small>Search reference titles installed on this box</small></span></button>
-     <button type="button" className={physicalReviewSource === 'connected' ? 'selected' : ''} aria-pressed={physicalReviewSource === 'connected'} onClick={() => { setPhysicalReviewSource('connected'); scrollPhysicalReviewToTop(); }}><Server size={17}/><span><strong>Connected libraries</strong><small>Synced Jellyfin and Plex titles</small></span></button>
-    </div>
-    <button type="button" className="text-button physical-manual-choice" disabled={busy} onClick={() => backToPhysicalDetails(true)}><Disc3 size={16}/>Enter details myself</button>
-    {(physicalReviewSource === 'household' || physicalReviewSource === 'connected') && <form className="match-search" onSubmit={event => { event.preventDefault(); void searchPhysicalLibrary(); }}><label><Search size={17}/><input value={physicalSearchQuery} onChange={event => setPhysicalSearchQuery(event.target.value)} placeholder="Search an existing title"/></label><button className="subtle-button" disabled={busy || !physicalSearchQuery.trim()}>Search</button></form>}
-   </section>
-   <div className="form-grid physical-review-details">
-    <label className="field"><span>Format</span><select disabled={busy} value={physicalReview.draft.format} onChange={event => changePhysicalReviewDraft(physicalDraftForFormat(physicalReview.draft, event.target.value as PhysicalFormat))}>{[...new Set([physicalReview.draft.format, ...intakeFormats])].map(format => <option key={format} value={format}>{physicalFormatLabel(format)}</option>)}</select></label>
-    <label className="field"><span>Media type</span><select disabled={busy} value={physicalReview.draft.kind} onChange={event => changePhysicalReviewDraft(physicalDraftForKind(physicalReview.draft, event.target.value as Kind))}>{physicalKindOptions(physicalReview.draft.format).map(kind => <option key={kind} value={kind}>{kindNames[kind]}</option>)}</select></label>
-    <label className="field"><span>Barcode / ISBN <small>optional</small></span><input disabled={busy} maxLength={80} value={physicalReview.draft.barcode} onChange={event => changePhysicalReviewDraft({ ...physicalReview.draft, barcode: event.target.value })}/></label>
-    {physicalReview.draft.kind === 'game' && <label className="field"><span>Console or platform <small>required</small></span><input disabled={busy} list="physical-review-platforms" maxLength={120} value={physicalReview.draft.platform === '__custom__' ? '' : physicalReview.draft.platform} onChange={event => changePhysicalReviewDraft({ ...physicalReview.draft, platform: event.target.value })}/><datalist id="physical-review-platforms">{gamePlatforms.map(platform => <option key={platform} value={platform}/>)}</datalist></label>}
-   </div>
+   {physicalReviewSource === 'packs' && <section className="physical-pack-search" aria-label="Blank Box Database matches"><div className="physical-match-heading"><strong>Blank Box Database matches</strong><small>Search installed Offline Metapacks. A title match alone does not prove an edition.</small></div><MetadataCandidateReview key={physicalMetadataSignature(physicalReview.draft)} title={physicalReview.draft.title} kind={physicalReview.draft.kind} year={physicalReview.draft.year ? Number(physicalReview.draft.year) : null} identifier={physicalReview.draft.barcode.trim() ? { namespace: physicalReview.draft.kind === 'book' ? 'isbn' : 'upc-ean', value: physicalReview.draft.barcode.trim() } : undefined} selectedId={physicalMetadata?.signature === physicalMetadataSignature(physicalReview.draft) ? physicalMetadata.id : ''} onSelect={(id, candidate) => { setPhysicalManualCheck(null); setPhysicalMetadata(id ? { id, signature: physicalMetadataSignature(physicalReview.draft), candidate } : null); setSeparatePhysicalConfirmed(false); setPackMatchLookup(null); setPackMatchRevision(value => value + 1); }} sourceScope="packs" targetLevel="any" releaseRequiresIdentifier disabled={busy}/></section>}
    {physicalReviewSource === 'packs' && <section className="physical-pack-review">
     {selectedPackCandidate && <>
      <div className="barcode-reference-summary"><CheckCircle2 size={18}/><span><strong>{selectedPackCandidate.title}</strong><small>{selectedPackCandidate.level === 'release' ? 'Matched edition' : 'Matched title'} · {[selectedPackCandidate.year, selectedPackCandidate.format, selectedPackCandidate.edition].filter(Boolean).join(' · ')}</small></span><button className="text-button" onClick={() => setPhysicalMetadata(null)}>Clear match</button></div>
@@ -1352,17 +1397,17 @@ export default function BlankBox() {
      <button className="primary-button" disabled={busy || !physicalMetadata || packMatchPending || !!packMatchError || packHouseholdMatches.length > 0 && !separatePhysicalConfirmed || physicalReview.draft.kind === 'game' && (!physicalReview.draft.platform.trim() || physicalReview.draft.platform === '__custom__')} onClick={() => void createPhysical(physicalReview.draft, physicalMetadata?.id)}>{packHouseholdMatches.length ? 'Create separate title and add item' : 'Confirm title and add physical item'}</button>
     </>}
    </section>}
-   {physicalManual && physicalReviewSource !== 'packs' && <button className="primary-button" disabled={busy || !physicalReview.draft.title.trim() || physicalReview.draft.kind === 'game' && (!physicalReview.draft.platform.trim() || physicalReview.draft.platform === '__custom__')} onClick={addManualPhysical}>{physicalReview.candidates.length ? 'Add as a separate library title' : 'Confirm and add physical item'}</button>}
-   <button className="subtle-button physical-review-back" disabled={busy} onClick={() => backToPhysicalDetails(true)}><ArrowLeft size={16}/>Back to item details</button>
+   {physicalManualCheck?.signature === physicalMetadataSignature(disc) && physicalManualCheck.candidates.length > 0 && <label className="physical-separate-confirm"><input type="checkbox" disabled={busy} checked={separatePhysicalConfirmed} onChange={event => setSeparatePhysicalConfirmed(event.target.checked)}/><span>I checked the possible matches and want a separate library title.</span></label>}
+   <div className="physical-manual-add"><button className="subtle-button" type="submit" form="physical-item-details" disabled={busy || !disc.title.trim() || disc.kind === 'game' && (!disc.platform.trim() || disc.platform === '__custom__')}>{busy ? 'Checking…' : physicalManualCheck?.candidates.length ? 'Confirm separate title and add item' : 'Add without a match'}<Plus size={16}/></button><small>Use your entered details. We check your library for duplicates before adding a new title.</small></div>
   </>}
   {physicalReview && physicalChoice && <>
    <div className="physical-merge-summary"><span><strong>Selected library title</strong><small>{physicalChoice.item.title}{physicalChoice.item.year ? ` (${physicalChoice.item.year})` : ''} · {kindNames[physicalChoice.item.kind]}</small></span><span><strong>Physical item you are adding</strong><small>{physicalReview.draft.format}{physicalReview.draft.edition ? ` · ${physicalReview.draft.edition}` : ''}{physicalReview.draft.location ? ` · ${physicalReview.draft.location}` : ''}{physicalReview.draft.barcode ? ` · barcode ${physicalReview.draft.barcode}` : ''}</small></span></div>
    <div className="physical-existing-sources"><strong>Already linked to this title</strong><p>{physicalChoice.item.sources.length ? physicalChoice.item.sources.map(source => `${source.type === 'physical' ? `${source.label} physical copy` : source.type === 'local' ? 'Blank Box file' : source.type === 'digital' ? 'Indexed file' : ['plex', 'jellyfin', 'emby'].includes(source.type) ? source.label : `${source.label} source`}${source.location ? ` at ${source.location}` : ''}`).join(' · ') : 'No sources yet'}</p></div>
    <div className="physical-edition-options" role="group" aria-label="Choose how to add this physical item"><button type="button" disabled={!compatiblePhysicalVersions.length} className={physicalChoice.mode === 'same' ? 'selected' : ''} aria-pressed={physicalChoice.mode === 'same'} onClick={() => setPhysicalChoice({ ...physicalChoice, mode: 'same', versionId: compatiblePhysicalVersions[0].id })}><strong>Another owned copy of this edition</strong><small>{compatiblePhysicalVersions.length ? 'Use the same format and edition already recorded on this title. The owned-copy count increases.' : 'No existing physical edition has this format and edition.'}</small></button><button type="button" className={physicalChoice.mode === 'new' ? 'selected' : ''} aria-pressed={physicalChoice.mode === 'new'} onClick={() => setPhysicalChoice({ ...physicalChoice, mode: 'new' })}><strong>Add a different format or edition</strong><small>Create a separate edition and a new physical copy under this library title.</small></button></div>
-   {physicalChoice.mode === 'new' ? <p className="muted small">This creates {physicalReview.draft.format}{physicalReview.draft.edition ? ` · ${physicalReview.draft.edition}` : ''} on this title and adds one owned copy. Use Back to item details to change the format or edition.</p> : physicalChoice.mode === 'same' ? <label className="field"><span>Which existing edition is this copy of?</span><select value={physicalChoice.versionId} onChange={event => setPhysicalChoice({ ...physicalChoice, versionId: event.target.value })}>{compatiblePhysicalVersions.map(version => <option key={version.id} value={version.id}>{version.label}</option>)}</select><small>Only the new owned copy is added to this edition. Existing files and service links remain.</small></label> : <p className="muted small">Choose how this physical copy belongs under the selected title.</p>}
+   {physicalChoice.mode === 'new' ? <p className="muted small">This creates {physicalReview.draft.format}{physicalReview.draft.edition ? ` · ${physicalReview.draft.edition}` : ''} on this title and adds one owned copy. Change the format or edition in the item details alongside this choice.</p> : physicalChoice.mode === 'same' ? <label className="field"><span>Which existing edition is this copy of?</span><select value={physicalChoice.versionId} onChange={event => setPhysicalChoice({ ...physicalChoice, versionId: event.target.value })}>{compatiblePhysicalVersions.map(version => <option key={version.id} value={version.id}>{version.label}</option>)}</select><small>Only the new owned copy is added to this edition. Existing files and service links remain.</small></label> : <p className="muted small">Choose how this physical copy belongs under the selected title.</p>}
    <div className="duplicate-review-actions physical-choice-actions"><button className="subtle-button" disabled={busy} onClick={() => setPhysicalChoice(null)}><ArrowLeft size={16}/>Back to matches</button><button className="primary-button" disabled={busy || !physicalChoice.mode || physicalChoice.mode === 'same' && !physicalChoice.versionId} onClick={() => void attachPhysical()}>{physicalChoice.mode === 'new' ? 'Create edition and add copy' : physicalChoice.mode === 'same' ? 'Add another owned copy' : 'Choose how to add'}</button></div>
   </>}
- </DialogContent></Dialog>
+ </AddPhysicalDialog>}
  <Dialog open={!!justAddedPhysical} onOpenChange={open => { if (!open && justAddedPhysical)
         requestPhysicalCancel(justAddedPhysical); }}><DialogContent className="form-dialog import-match-dialog"><DialogHeader><DialogTitle>Added to your Physical Media</DialogTitle><DialogDescription>Choose how you want to finish this record.</DialogDescription></DialogHeader><div className="import-match-actions"><button className="import-choice match-choice" onClick={() => { if (justAddedPhysical) {
         setIntakeChoice(justAddedPhysical);

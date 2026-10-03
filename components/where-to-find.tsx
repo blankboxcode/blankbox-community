@@ -1,28 +1,22 @@
 'use client';
+import { streamingDefaults, serviceDestination, safeServiceUrl } from '@/lib/streaming-services';
 
 import { ArrowUpRight, BookOpen, Disc3, Film, FolderArchive, Gamepad2, Globe2, HardDrive, Images, Music2, Search, Server, ShieldCheck, Trash2 } from 'lucide-react';
-import { bytes, sourceActionLabel, isConnectedPlaybackSource, preferredPlaybackSource, type MediaItem, type MediaSource, type StreamingService } from '@/lib/media';
+import { bytes, sourceActionLabel, isConnectedPlaybackSource, preferredPlaybackSource, type MediaItem, type MediaSource, type StreamingService, type ServiceLink } from '@/lib/media';
 import { MediaActionIcon } from '@/components/media-action-icon';
 import { physicalFormatLabel } from '@/lib/physical-media';
 
-const serviceSearch:Record<StreamingService,{name:string;url:(query:string)=>string}>={
- netflix:{name:'Netflix',url:query=>'https://www.netflix.com/search?q='+encodeURIComponent(query)},
- 'prime-video':{name:'Prime Video',url:query=>'https://www.amazon.com/s?i=instant-video&k='+encodeURIComponent(query)},
- 'disney-plus':{name:'Disney+',url:query=>'https://www.disneyplus.com/search?q='+encodeURIComponent(query)},
- youtube:{name:'YouTube',url:query=>'https://www.youtube.com/results?search_query='+encodeURIComponent(query)},
- spotify:{name:'Spotify',url:query=>'https://open.spotify.com/search/'+encodeURIComponent(query)},
- 'apple-tv':{name:'Apple TV',url:query=>'https://tv.apple.com/search?term='+encodeURIComponent(query)},
-};
 
-type Props={item:MediaItem;streamingServices:StreamingService[];onPlaySource?:(source:MediaSource)=>void;onRemovePhysical?:(source:MediaSource)=>void};
+type Props={serviceLinks?:ServiceLink[];item:MediaItem;streamingServices:StreamingService[];onPlaySource?:(source:MediaSource)=>void;onRemovePhysical?:(source:MediaSource)=>void};
 function safeExternal(value?:string){try{const url=new URL(value||'');return ['https:','http:'].includes(url.protocol)&&!url.username&&!url.password?url.href:'';}catch{return '';}}
-function physicalDetails(source:MediaSource){return [source.location||'No physical location entered',source.edition,source.platform,source.volume&&`Volume ${source.volume}`,source.issue&&`Issue ${source.issue}`,source.condition,source.grade&&`Grade ${source.grade}`,source.signed&&`Signed: ${source.signed}`,source.certificate&&`COA: ${source.certificate}`,source.barcode&&`Barcode ${source.barcode}`].filter(Boolean).join(' · ');}
+function physicalDetails(source:MediaSource){return [source.location||'No physical location entered',source.edition,source.packaging,source.releaseLabel,source.platform,source.volume&&`Volume ${source.volume}`,source.issue&&`Issue ${source.issue}`,source.condition,source.grade&&`Grade ${source.grade}`,source.signed&&`Signed: ${source.signed}`,source.certificate&&`COA: ${source.certificate}`,source.barcode&&`Barcode ${source.barcode}`].filter(Boolean).join(' · ');}
 function PhysicalIcon({item}:{item:MediaItem}){
  const Icon=item.kind==='game'?Gamepad2:item.kind==='book'||item.kind==='comic'?BookOpen:item.kind==='music'?Music2:item.kind==='photo'||item.kind==='home-video'?Images:item.kind==='movie'||item.kind==='tv'?Film:Disc3;
  return <Icon/>;
 }
 
-export function WhereToFind({item,streamingServices,onPlaySource,onRemovePhysical}:Props){
+export function WhereToFind({item,streamingServices,serviceLinks,onPlaySource,onRemovePhysical}:Props){
+ const links=serviceLinks||streamingDefaults.filter(service=>streamingServices.includes(service.id as StreamingService));
  const preferred=preferredPlaybackSource(item);
  const sourceRows=[...item.sources].sort((left,right)=>left===preferred?-1:right===preferred?1:0).flatMap((source,index)=>{
   const preferredStatus=source===preferred?'Preferred':'Ready';
@@ -38,10 +32,11 @@ export function WhereToFind({item,streamingServices,onPlaySource,onRemovePhysica
   if(source.type==='demo'){const link=safeExternal(source.url);return [<div className="find-row" key={`demo-${index}`}><span className="find-icon"><Globe2/></span><span><strong>{source.label}</strong><small>Open sample media</small></span>{link&&<a href={link} target="_blank" rel="noopener noreferrer">Open<ArrowUpRight/></a>}</div>];}
   return [];
  });
- return <section className="where-to-find"><div className="where-heading"><span><strong>Where to find it</strong><small>Confirmed copies and the services you chose</small></span><ShieldCheck size={18}/></div><div className="find-group"><span className="find-label">YOUR COLLECTION</span>{sourceRows}{item.backup==='verified'&&<div className="find-row secondary"><span className="find-icon ready"><ShieldCheck/></span><span><strong>Verified backup</strong><small>{item.backupVerifiedAt?`Checked ${new Date(item.backupVerifiedAt).toLocaleString()}`:'A checked copy exists in your configured backup'}</small></span><em className="find-status ready">Verified</em></div>}</div>{streamingServices.length>0&&<div className="find-group streaming"><span className="find-label">SEARCH YOUR SERVICES</span><div className="find-service-links">{streamingServices.map(id=>{const service=serviceSearch[id];return <a key={id} href={service.url(item.title)} target="_blank" rel="noopener noreferrer"><Search size={14}/>{service.name}<ArrowUpRight size={13}/></a>;})}</div><p>These are official searches, not confirmed availability. Streaming catalogs vary by region, plan, and date.</p></div>}</section>;
+ return <section className="where-to-find"><div className="where-heading"><span><strong>Where to find it</strong><small>Confirmed copies and the services you chose</small></span><ShieldCheck size={18}/></div><div className="find-group"><span className="find-label">YOUR COLLECTION</span>{sourceRows}{(item.digitalPlatforms||[]).map(record=><div className="find-row" key={record.id}><span className="find-icon"><Globe2/></span><span><strong>{record.platform}</strong><small>{{purchased:'Purchased',redeemed:'Redeemed','code-included':'Code included'}[record.status]} · Recorded by you{record.notes&&` · ${record.notes}`}</small></span>{safeServiceUrl(record.url)&&<a href={safeServiceUrl(record.url)} target="_blank" rel="noopener noreferrer">Open<ArrowUpRight/></a>}</div>)}{item.backup==='verified'&&<div className="find-row secondary"><span className="find-icon ready"><ShieldCheck/></span><span><strong>Verified backup</strong><small>{item.backupVerifiedAt?`Checked ${new Date(item.backupVerifiedAt).toLocaleString()}`:'A checked copy exists in your configured backup'}</small></span><em className="find-status ready">Verified</em></div>}</div>{links.length>0&&<div className="find-group streaming"><span className="find-label">SEARCH YOUR SERVICES</span><div className="find-service-links">{links.map(service=>{return <a key={service.id} href={serviceDestination(service,item.title)} target="_blank" rel="noopener noreferrer"><Search size={14}/>{service.name}<ArrowUpRight size={13}/></a>;})}</div><p>Service links and searches do not confirm availability or digital ownership. Streaming catalogs vary by region, plan, and date.</p></div>}</section>;
 }
 
-export function StreamingSearchLinks({item,streamingServices}:{item:MediaItem;streamingServices:StreamingService[]}){
- if(!streamingServices.length)return null;
- return <section className="item-detail-streaming"><h4>Search your services</h4><div className="find-service-links">{streamingServices.map(id=>{const service=serviceSearch[id];return <a key={id} href={service.url(item.title)} target="_blank" rel="noopener noreferrer"><Search size={14}/>{service.name}<ArrowUpRight size={13}/></a>;})}</div><p>These searches do not confirm availability. Catalogs can vary by region, plan, and date.</p></section>;
+export function StreamingSearchLinks({item,streamingServices,serviceLinks}:{item:MediaItem;streamingServices:StreamingService[];serviceLinks?:ServiceLink[]}){
+ const links=serviceLinks||streamingDefaults.filter(service=>streamingServices.includes(service.id as StreamingService));
+ if(!links.length)return null;
+ return <section className="item-detail-streaming"><h4>Search your services</h4><div className="find-service-links">{links.map(service=>{return <a key={service.id} href={serviceDestination(service,item.title)} target="_blank" rel="noopener noreferrer"><Search size={14}/>{service.name}<ArrowUpRight size={13}/></a>;})}</div><p>These links do not confirm availability or digital ownership. Catalogs can vary by region, plan, and date.</p></section>;
 }

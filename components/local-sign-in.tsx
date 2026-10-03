@@ -72,6 +72,8 @@ export function LocalSignIn({ open, busy, onBusyChange, onAuthenticated }: Props
           <button className="primary-button auth-primary" disabled={busy || (creating || recovery) && password !== confirmPassword}>{creating ? 'Create owner profile' : recovery ? 'Reset password' : 'Open my library'}<ChevronRight size={17} /></button>
           {!creating && <button className="text-button" type="button" onClick={() => { setRecovery((value) => !value); setPassword(''); setConfirmPassword(''); }}>{recovery ? 'Use my password instead' : 'Forgot password? Use recovery key'}</button>}
         </form>}
+        {status?.hasProfile&&status.oidcEnabled&&!recovery&&<button className="subtle-button" type="button" disabled={busy} onClick={()=>{onBusyChange(true);void blankBoxClient.startOIDC('login',undefined,remember).then(url=>window.location.assign(url)).catch(error=>{toast.error((error as Error).message);onBusyChange(false);});}}>Sign in with {status.oidcName||'identity provider'}</button>}
+        {recovery&&<p className="muted small">The key is in access-key.txt in your Blank Box data folder on the server. Password recovery also disconnects linked OIDC sign-in.</p>}
         <small className="auth-local-note"><ShieldCheck size={13}/>Credentials and sessions stay on this Blank Box</small>
       </section>
     </main>;

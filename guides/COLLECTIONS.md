@@ -1,6 +1,6 @@
 # Organize your collection and scan physical media
 
-We include these controls in this beta. See [Platform status](../PLATFORMS.md) for device and platform limitations.
+Organize the media you own, record its copies and locations, and use installed reference data to help find titles. See [Platform status](../PLATFORMS.md) for device and platform limitations.
 
 ## Collections
 
@@ -36,17 +36,29 @@ Our current packs are Movies v4 (62,306 genre-tagged titles of 96,861), Books v7
 
 ## Genres and your own categories
 
-Open an item, choose **Edit details**, and use **Custom genres** to add household labels such as Holiday, Halloween, or Comfort films. These labels remain separate from provider genres and survive a provider metadata refresh.
+Open an item, choose **Edit title details**, and use **Custom genres** to add household labels such as Holiday, Halloween, or Comfort films. These labels remain separate from provider genres and survive a provider metadata refresh.
 
 Collections and the library genre filter use both ordinary genres and your custom genres. Custom genres are owner-entered local metadata; they are not contributions to a downloadable reference pack.
 
 ## Watch, read, listen, and play status
 
-The item's **Overview** has local status controls and **History**. Set Not started, In progress, or Completed; the wording follows the media type. History shows the time recorded and lets you undo an event without deleting the history.
+Open the item's **Activity** section for local status controls and **History**. Set Not started, In progress, or Completed; the wording follows the media type. History shows the time recorded and lets you undo an event without deleting the history.
 
 TV season status appears inside each expanded season, with Whole Series & Activity History kept separately. History can also record a specific episode such as `S1E1`. Recording a season or episode does not mark the entire series watched. An optional edition identifies what you used; activity still belongs to the household library item.
 
 This first version is manual and stored on your Blank Box. Playback resume positions and Plex/Jellyfin refreshes do not automatically change it. External watch-service synchronization is not implemented. The full catalog export includes collections, custom genres, and activity history; media-byte backup is separate.
+
+## Add physical items and choose your defaults
+
+Open **Import → Add physical item** or **Physical Media → Add physical item**. Enter the title, format, media type and location on the same screen where you search and confirm the copy. Year, edition, packaging, release label and barcode are available there too; expand **More copy details** for condition, credits, region and catalog number.
+
+**Search for a title** starts with **Blank Box Database**, which searches installed Offline Metapacks on your computer. Choose **My Library** for saved titles or **Connected libraries** for synced Plex/Jellyfin titles. Search uses the title you entered; you do not need to enter it again. Select a reference and confirm the physical item, or choose an existing library title and decide whether this is another copy of its edition or a different edition. A title match alone does not prove the exact physical edition.
+
+Use **Add without a match** to save your entered details. We check your library before creating a new title. If there are possible duplicates, add the copy to a matching title or explicitly confirm a separate title. No item is saved simply by searching, choosing a default or scanning a barcode. Closing a changed draft asks before clearing it.
+
+In **Settings → Collection → Physical Media preferences**, set a starting format for each media type and **Default title search**, then save. For example, set Movies to **4K UHD Blu-ray** and Music to **Vinyl**. These are starting choices; each copy can use a different format. **Save … as my … default** and **Use this search as my default** save the current choice directly from the add screen. Saving a format as your default also makes that format visible if it was hidden.
+
+Hiding a preferred format makes new drafts fall back to a visible compatible format; it does not change existing copies or forget the preference. An exact scanned edition keeps its identified format, and audio-CD intake keeps CD. Your preferences survive updates and catalog export/recovery. Searching reference data requires an installed pack; manual entry and My Library remain available without packs.
 
 ## Scan barcodes
 
@@ -54,7 +66,7 @@ This first version is manual and stored on your Blank Box. Playback resume posit
 2. Choose **Scan barcode**, center the whole barcode, and hold steady. Avoid glare and move back until all bars are sharp. You can choose another camera when the browser exposes several.
 3. When a code is detected, the camera stops. Review the captured frame, highlighted region, and printed number. Correct a misread or choose **Scan again**.
 4. Check **This matches the code printed on my item**, then **Confirm barcode**.
-5. Choose an exact household/reference candidate, or enter your own title. Select **Review physical copy**, check format, edition, location, and other details, then confirm the copy.
+5. Choose an exact household/reference candidate, or enter your own title. Select **Review physical item** to open the same add screen, check format, edition, location, and other details, then confirm the copy.
 
 Nothing becomes owned merely because a barcode was scanned or a reference was found. Cancelling copy intake keeps the scan queued. A completed intake removes that scan from the queue; another copy can then be scanned and reviewed. The queue is temporary browser-session state, not a saved import batch.
 
@@ -68,4 +80,6 @@ Camera captures and cover observations stay in this browser session. Camera star
 
 ## Sources and finding more
 
-Known formats/editions are in the item’s **Sources** tab. **Find more → Choose store searches** offers 25 built-in choices across media types plus household custom links. Nine sources are initially enabled where applicable; saved choices stay exact after updates. Some sources open the store/search page for you to search there. Links do not report live prices or availability. A physical/list-only item without playback has **Search for More** as its primary action.
+Open a title to see its artwork, playback choices and **Your editions** in a popup over your library. Select an edition to show its artwork and copies; use **Edit this copy** for its location, condition and edition fields. **Edit title details** changes shared information, **Edit artwork** opens the selected edition’s gallery, and **Choose details source** selects saved Blank Box or connected-service information. Music covers stay square and show the full image. **Close (×)** or **Escape** returns to your library with its filters and scroll position. Editors open above the item; closing an editor returns to the same edition and artwork. Each popup scrolls within the screen.
+
+**Find more → Choose store searches** offers 25 built-in choices across media types plus custom links. Nine sources are initially enabled where applicable; saved choices stay exact after updates. Reference editions appear here separately from your owned copies. Some links open a store page for you to search there; they do not report live prices or availability. **Search your services** stays in item details and opens the configured streaming searches.

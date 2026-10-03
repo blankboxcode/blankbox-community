@@ -1,15 +1,15 @@
 # Platform status
 
-We use the same Core and catalog schema 20 on every target. Our installation paths and their requirements are listed below.
+The current Linux/Docker package is **0.1.0-beta.10**, with catalog schema **22**. Our separate Windows download remains **0.1.0-beta.8**, with schema **20**. The collector, artwork, physical-entry and OIDC changes in this update are available on Linux/Docker; they are not included in the older Windows package.
 
 Choose the Linux/Docker Community ZIP for a Linux computer or the Windows x64 offline ZIP for Windows. Each installation ZIP carries setup and update tools for its target platform; the source ZIP is a separate developer artifact. Shared in-app guides may mention other platforms.
 
-| Target | Installation model | Evidence boundary |
+| Target | Installation model | Status |
 | --- | --- | --- |
-| Linux | System Python 3.10+, SQLite FTS5, systemd for service installation | Local Python and isolated package checks; clean-machine system service/reboot acceptance must be recorded separately. |
-| Docker on Linux | Locally built image, non-root user (10001:10001 by default), persistent named volume or dedicated local bind folder, read-only source mounts | Container acceptance is recorded with the exact package; optical hardware requires separate testing. |
-| Windows 10/11 x64 | Included CPython 3.13.15, foreground process or per-user logon task | Experimental. Script checks on Linux are not Windows installation, NTFS, device or reboot acceptance. |
+| Linux | System Python 3.10+, SQLite FTS5, systemd for service installation | Primary native installation path. Use the Linux guide for setup and updates. |
+| Docker on Linux | Locally built image, non-root user (1000:1000 for new installations; existing IDs retained on update), persistent named volume or dedicated local bind folder, read-only source mounts | Supports named volumes and correctly owned local bind folders. Optical hardware needs compatible host access. |
+| Windows 10/11 x64 | Included CPython 3.13.15, foreground process or per-user logon task | Experimental older download. Native Windows/NTFS and full-machine reboot acceptance remain incomplete. Do not use it to open a schema 22 catalog. |
 
 We do not claim an always-on Windows service, Windows ARM, Docker Desktop optical passthrough, universal browser codecs, transcoding or protected video-disc extraction. Our native audio-CD adapters use read-only APIs and produce WAV; optional existing Linux utilities can produce FLAC. Real-drive acceptance remains device-specific.
 
-Large catalogs use bounded server pages, compact summaries and on-demand details. Initial indexes, broad searches, uncached collection suggestions and large folder walks may take time. Folder monitoring is optional, periodically checks metadata, and queues review after two stable observations. Network shares and low-power devices need their own measurements. A 100,000-title fixture is not a million-title performance guarantee.
+Large catalogs use bounded server pages, compact summaries and on-demand details. Initial indexes, broad searches, uncached collection suggestions and large folder walks may take time. Folder monitoring is optional, periodically checks metadata, and queues review after two stable observations. Performance depends on library size, storage and the device running Blank Box.

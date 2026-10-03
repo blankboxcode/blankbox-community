@@ -29,6 +29,9 @@ from commerce import clean_store_preferences, store_links, store_sources
 from tv_catalog import jellyfin_tree, plex_tree
 from catalog_details import clean_details, clean_facts, provider_details, provider_identifiers
 from barcodes import barcode_keys, clean_barcode
+from oidc import OIDC, configuration as oidc_configuration
+from artwork_gallery import ArtworkGallery, MAX_TITLE_IMAGES
+from collector_features import service_preferences, digital_platforms
 from artwork import MAX_ARTWORK_BYTES, artwork_hash, artwork_url, folder_cover_paths, jpeg_size
 from library_collections import activity_history, activity_states, hidden_organization, labels as collection_labels, list_collections, merge_collection_activity, record_activity, restore_organization, save_collection
 
@@ -41,7 +44,7 @@ def product_version():
     return '0.0.0-development'
 
 VERSION = product_version()
-CATALOG_SCHEMA_VERSION = 20
+CATALOG_SCHEMA_VERSION = 22
 MEDIA_RIGHTS_TERMS_VERSION = '1'
 KINDS = {'movie','tv','music','photo','home-video','book','comic','game','file'}
 VIDEO_KINDS = {'movie','tv','home-video'}
@@ -71,9 +74,9 @@ HOME_ROWS = ('recently-added','recently-released','movies','tv','music','photos'
 SIDEBAR_DESTINATIONS = ('library','collections','physical',*SIDEBAR_SHORTCUTS)
 HOME_HERO_MODES = ('watch','music','book','photos','comics','games')
 HOME_HERO_SORTS = ('added','released','az','random')
-DEFAULTS = {'helpTipsEnabled':True,'name':'My Blank Box','jellyfinUrl':'','plexUrl':'','immichUrl':'','remoteUrl':'','opticalDrive':'','setupDone':False,'setupVersion':1,'setupMode':'','setupStep':'welcome','mediaProvider':'blankbox','mediaInputs':[],'physicalFormats':list(DEFAULT_PHYSICAL_FORMATS),'physicalLocations':[],'gamePlatforms':list(COMMON_GAME_PLATFORMS),'gamePlatformCatalogVersion':1,'sidebarShortcuts':[],'sidebarShortcutVersion':1,'sidebarOrder':list(SIDEBAR_DESTINATIONS),'streamingServices':[],'remoteProvider':'local','autoImport':False,'autoProviderRefresh':False,'autoFolderCopy':False,'autoSourceIndex':False,'autoImportMinutes':30,'heroWatch':True,'heroMusic':True,'heroBooks':True,'heroPhotos':False,'heroComics':False,'heroGames':False,'homeRows':['recently-added','recently-released'],'homeHeroOrder':list(HOME_HERO_MODES),'homeHeroSort':'added','retailStoreKinds':{},'customRetailStores':[],'mediaRightsAttestation':None}
+DEFAULTS = {'helpTipsEnabled':True,'name':'My Blank Box','jellyfinUrl':'','plexUrl':'','immichUrl':'','remoteUrl':'','opticalDrive':'','setupDone':False,'setupVersion':1,'setupMode':'','setupStep':'welcome','mediaProvider':'blankbox','mediaInputs':[],'physicalFormats':list(DEFAULT_PHYSICAL_FORMATS),'physicalDefaultFormats':{},'physicalTitleSearchSource':'packs','physicalLocations':[],'gamePlatforms':list(COMMON_GAME_PLATFORMS),'gamePlatformCatalogVersion':1,'sidebarShortcuts':[],'sidebarShortcutVersion':1,'sidebarOrder':list(SIDEBAR_DESTINATIONS),'streamingServices':[],'streamingServiceOverrides':[],'customStreamingServices':[],'remoteProvider':'local','autoImport':False,'autoProviderRefresh':False,'autoFolderCopy':False,'autoSourceIndex':False,'autoImportMinutes':30,'heroWatch':True,'heroMusic':True,'heroBooks':True,'heroPhotos':False,'heroComics':False,'heroGames':False,'homeRows':['recently-added','recently-released'],'homeHeroOrder':list(HOME_HERO_MODES),'homeHeroSort':'added','retailStoreKinds':{},'customRetailStores':[],'mediaRightsAttestation':None}
 OWNERSHIP_NAMESPACE = uuid.UUID('9b30c0a0-7830-5cb0-b7bb-b00169de784e')
-RUNTIME_CONFIG_KEYS = {'data','sources','backup','host','port','backupEveryHours'}
+RUNTIME_CONFIG_KEYS = {'data','sources','backup','host','port','backupEveryHours','oidc'}
 
 def configured_sources(value):
     if value in (None,''):return []
@@ -102,8 +105,8 @@ def load_runtime_config(config_path=None,overrides=None,environ=None):
         if not isinstance(saved,dict):raise ValueError('Configuration file must contain a JSON object.')
         unknown=set(saved)-RUNTIME_CONFIG_KEYS
         if unknown:raise ValueError('Unknown configuration fields: '+', '.join(sorted(unknown)))
-    environment={'data':'BLANKBOX_DATA','sources':'BLANKBOX_SOURCES','backup':'BLANKBOX_BACKUP','host':'BLANKBOX_HOST','port':'BLANKBOX_PORT','backupEveryHours':'BLANKBOX_BACKUP_EVERY_HOURS'}
-    defaults={'data':str(Path.home()/'Blank Box'),'sources':[],'backup':None,'host':'127.0.0.1','port':25265,'backupEveryHours':None}
+    environment={'data':'BLANKBOX_DATA','sources':'BLANKBOX_SOURCES','backup':'BLANKBOX_BACKUP','host':'BLANKBOX_HOST','port':'BLANKBOX_PORT','backupEveryHours':'BLANKBOX_BACKUP_EVERY_HOURS','oidc':'BLANKBOX_OIDC'}
+    defaults={'data':str(Path.home()/'Blank Box'),'sources':[],'backup':None,'host':'127.0.0.1','port':25265,'backupEveryHours':None,'oidc':None}
     values={}
     for key in RUNTIME_CONFIG_KEYS:
         if overrides.get(key) is not None:values[key]=overrides[key]
@@ -127,6 +130,7 @@ def load_runtime_config(config_path=None,overrides=None,environ=None):
         except (TypeError,ValueError) as error:raise ValueError('backupEveryHours must be at least 1.') from error
         if values['backupEveryHours']<1:raise ValueError('backupEveryHours must be at least 1.')
         if not values['backup']:raise ValueError('backupEveryHours requires a backup folder.')
+    values['oidc']=oidc_configuration(values['oidc'])
     return values
 
 def now(): return datetime.now(timezone.utc).isoformat()
@@ -389,7 +393,7 @@ def physical_records(item,source):
         'recordVersion':1,
         'createdAt':item.get('addedAt',now()),
     }
-    for key in ('barcode','creator','publisher','platform','region','catalogNumber'):
+    for key in ('barcode','creator','publisher','platform','region','catalogNumber','packaging','releaseLabel'):
         if source.get(key):release[key]=source[key]
     copy={
         'id':copy_id,
@@ -437,6 +441,9 @@ def sync_physical_ownership(db,item,*,prune=True):
         release,copy,content,source_changed=physical_records(item,source);changed=changed or source_changed;current.add(source['id'])
         release_row=db.execute('SELECT data FROM physical_releases WHERE id=?',(release['id'],)).fetchone()
         release=merged_record(release_row,release)
+        for key in ('packaging','releaseLabel'):
+            if source.get(key):release[key]=source[key]
+            else:release.pop(key,None)
         known_formats=release.get('formats') if isinstance(release.get('formats'),list) else []
         release['formats']=sorted({str(value).strip() for value in [*known_formats,content['format']] if str(value or '').strip()})
         db.execute('INSERT INTO physical_releases(id,data) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data',(release['id'],json.dumps(release)))
@@ -585,6 +592,15 @@ CATALOG_MIGRATIONS = (
     (20, 'private-owner-artwork', (
         'CREATE TABLE item_artwork(item_id TEXT PRIMARY KEY REFERENCES items(id) ON DELETE CASCADE,sha256 TEXT NOT NULL,width INTEGER NOT NULL,height INTEGER NOT NULL,mime TEXT NOT NULL CHECK(mime="image/jpeg"),image BLOB NOT NULL,updated_at TEXT NOT NULL)',
     )),
+    (21, 'collector-artwork-gallery', (
+        'CREATE TABLE artwork_gallery(id TEXT PRIMARY KEY,item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,release_id TEXT,label TEXT NOT NULL,role TEXT NOT NULL,sha256 TEXT NOT NULL,width INTEGER NOT NULL,height INTEGER NOT NULL,image BLOB NOT NULL,created_at TEXT NOT NULL,is_primary INTEGER NOT NULL DEFAULT 0)',
+        'CREATE INDEX artwork_gallery_item ON artwork_gallery(item_id)',
+        'CREATE UNIQUE INDEX artwork_gallery_primary ON artwork_gallery(item_id) WHERE is_primary=1',
+        "INSERT INTO artwork_gallery SELECT 'legacy-'||item_id,item_id,NULL,'Cover','front',sha256,width,height,image,updated_at,1 FROM item_artwork",
+    )),
+    (22, 'optional-oidc-owner-identities', (
+        'CREATE TABLE oidc_identities(issuer TEXT NOT NULL,subject TEXT NOT NULL,profile_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,PRIMARY KEY(issuer,subject),UNIQUE(profile_id))',
+    )),
 )
 
 def apply_catalog_migrations(db):
@@ -718,8 +734,9 @@ def password_matches(password,record):
         return secrets.compare_digest(actual,expected)
     except (KeyError,TypeError,ValueError):return False
 
-class Box:
-    def __init__(self,data,sources=(),backup=None,web=None):
+class Box(ArtworkGallery):
+    def __init__(self,data,sources=(),backup=None,web=None,oidc=None):
+        self.oidc=OIDC(oidc) if oidc else None
         self.data=reject_links(data).resolve();self.data.mkdir(mode=0o700,parents=True,exist_ok=True);os.chmod(self.data,0o700)
         if (self.data/'.restore-in-progress.json').exists():
             raise ValueError('An interrupted restore requires recovery. Resume the recorded snapshot with maintenance.py before starting Core.')
@@ -900,12 +917,16 @@ class Box:
         return self.public_profile(profile) if password_matches(password,profile.get('password',{})) else None
     def recover_owner_profile(self,username,password):
         if not isinstance(username,str):raise Problem('Enter the owner username.')
-        with self.db() as db:
-            row=db.execute('SELECT id,data FROM users WHERE username=? COLLATE NOCASE',(username.strip(),)).fetchone()
-            if not row:raise Problem('That owner profile was not found.',404)
-            profile=json.loads(row['data']);profile['password']=password_record(password);profile['passwordUpdatedAt']=now()
-            db.execute('UPDATE users SET data=? WHERE id=?',(json.dumps(profile),row['id']))
-            db.execute('DELETE FROM auth_sessions WHERE profile_id=?',(row['id'],))
+        with self.oidc.lock if self.oidc else nullcontext():
+            with self.db() as db:
+                row=db.execute('SELECT id,data FROM users WHERE username=? COLLATE NOCASE',(username.strip(),)).fetchone()
+                if not row:raise Problem('That owner profile was not found.',404)
+                profile=json.loads(row['data']);profile['password']=password_record(password);profile['passwordUpdatedAt']=now()
+                db.execute('UPDATE users SET data=? WHERE id=?',(json.dumps(profile),row['id']))
+                db.execute('DELETE FROM auth_sessions WHERE profile_id=?',(row['id'],))
+                db.execute('DELETE FROM oidc_identities WHERE profile_id=?',(row['id'],))
+            if self.oidc:
+                self.oidc.pending.clear();self.oidc.generation+=1
         return self.public_profile(profile)
     def create_auth_session(self,profile_id,remember=False):
         if not self.profile(profile_id):raise Problem('Owner profile not found.',404)
@@ -1106,6 +1127,13 @@ class Box:
         if incoming.get('customGenres'):
             target['customGenres']=collection_labels(list(dict.fromkeys(target.get('customGenres',[])+incoming['customGenres'])))
         incoming_version=incoming['versions'][0]
+        if len(target.get('digitalPlatforms',[]))+len(incoming.get('digitalPlatforms',[]))>30:raise Problem('Merging these titles would exceed 30 digital platform records. Keep the records separate or review them first.')
+        if incoming.get('digitalPlatforms'):
+            target['digitalPlatforms']=list(target.get('digitalPlatforms',[]))
+            for record in incoming['digitalPlatforms']:
+                record=dict(record)
+                if any(saved.get('id')==record.get('id') for saved in target['digitalPlatforms']):record['id']=uuid.uuid4().hex
+                target['digitalPlatforms'].append(record)
         if edition_policy=='new':
             label=incoming_version.get('label') or edition_label(incoming.get('title'))
             if label==STANDARD_EDITION:label='Additional edition'
@@ -1117,11 +1145,15 @@ class Box:
             wanted=incoming_version.get('label',STANDARD_EDITION)
             version=next((version for version in target['versions'] if version.get('label')==wanted),target['versions'][0])
             version_id=version['id']
-        existing_keys={(source.get('type'),source.get('providerItemId'),source.get('sha256'),source.get('sourceId'),source.get('path'),source.get('location')) for source in target['sources']}
-        for source in incoming.get('sources',[]):
+        def source_identity(source):
             identity=(source.get('type'),source.get('providerItemId'),source.get('sha256'),source.get('sourceId'),source.get('path'),source.get('location'))
+            if source.get('type')=='physical':identity+=(source.get('ownedCopyId') or source.get('id'),source.get('packageContentId'))
+            return identity
+        existing_keys={source_identity(source) for source in target['sources']}
+        for source in incoming.get('sources',[]):
+            identity=source_identity(source)
             if identity in existing_keys:
-                current=next(existing for existing in target['sources'] if (existing.get('type'),existing.get('providerItemId'),existing.get('sha256'),existing.get('sourceId'),existing.get('path'),existing.get('location'))==identity)
+                current=next(existing for existing in target['sources'] if source_identity(existing)==identity)
                 for key,value in source.items():
                     if key not in ('id','versionId','storedPath','sha256'):current[key]=value
                 continue
@@ -1141,7 +1173,13 @@ class Box:
             local_source=next((source for source in target['sources'] if source.get('type')=='local' and source.get('url')),None)
             if local_source:target['poster']=local_source['url']
         with self.db() as db:
+            db.execute('BEGIN IMMEDIATE')
             if incoming.get('id') and incoming.get('id')!=target['id']:
+                gallery_count=db.execute('SELECT COUNT(*) FROM artwork_gallery WHERE item_id IN (?,?)',(target['id'],incoming['id'])).fetchone()[0]
+                if gallery_count>MAX_TITLE_IMAGES:raise Problem('Merging these titles would exceed 48 saved images. Keep the titles separate or review their images first.')
+                incoming_primary=db.execute('SELECT id FROM artwork_gallery WHERE item_id=? AND is_primary=1',(incoming['id'],)).fetchone()
+                db.execute('UPDATE artwork_gallery SET is_primary=0 WHERE item_id=?',(incoming['id'],))
+                db.execute('UPDATE artwork_gallery SET item_id=? WHERE item_id=?',(target_id,incoming['id']))
                 incoming_art=db.execute('SELECT sha256,width,height,mime,image,updated_at FROM item_artwork WHERE item_id=?',(incoming['id'],)).fetchone()
                 existing_art=db.execute('SELECT sha256 FROM item_artwork WHERE item_id=?',(target['id'],)).fetchone()
                 if existing_art:
@@ -1157,6 +1195,7 @@ class Box:
                         target['poster']=local_cover
                     db.execute('INSERT INTO item_artwork VALUES(?,?,?,?,?,?,?)',
                                (target['id'],incoming_art['sha256'],incoming_art['width'],incoming_art['height'],incoming_art['mime'],incoming_art['image'],incoming_art['updated_at']))
+                    if incoming_primary:db.execute('UPDATE artwork_gallery SET is_primary=1 WHERE item_id=? AND id=?',(target['id'],incoming_primary['id']))
                     local_id=local_work_id(target['id'])
                     backfill_item(db,target)
                     db.execute("DELETE FROM metadata_artwork_refs WHERE entity_id=? AND source='owner-upload'",(local_id,))
@@ -1243,15 +1282,23 @@ class Box:
             job['done']=job['total']=len(updates)
             job['message']=f'{len(updates)} missing provider cover links restored. Titles, other metadata, and uploaded covers were unchanged.'
         return self.start_job('restore-provider-covers',worker)
-    def save_owner_artwork(self,item_id,image):
+    def save_owner_artwork(self,item_id,image,*,gallery_id=None):
         try:width,height=jpeg_size(image)
         except ValueError as error:raise Problem(str(error),415) from error
         checksum=artwork_hash(image);reference=artwork_url(item_id,checksum)
         with self.db() as db:
+            db.execute('BEGIN IMMEDIATE')
             row=db.execute('SELECT data FROM items WHERE id=?',(item_id,)).fetchone()
             if not row:raise Problem('That library item was not found.',404)
             item=json.loads(row[0]);backfill_item(db,item)
             local_id=local_work_id(item_id)
+            if gallery_id is None:
+                if db.execute('SELECT COUNT(*) FROM artwork_gallery WHERE item_id=?',(item_id,)).fetchone()[0]>=MAX_TITLE_IMAGES:raise Problem('Keep up to 48 images per title.')
+                gallery_id=uuid.uuid4().hex
+                db.execute('INSERT INTO artwork_gallery(id,item_id,release_id,label,role,sha256,width,height,image,created_at) VALUES(?,?,NULL,?,?,?,?,?,?,?)',(gallery_id,item_id,'Cover','front',checksum,width,height,image,now()))
+            elif not db.execute('SELECT 1 FROM artwork_gallery WHERE id=? AND item_id=?',(gallery_id,item_id)).fetchone():raise Problem('That saved image was not found.')
+            db.execute('UPDATE artwork_gallery SET is_primary=0 WHERE item_id=?',(item_id,))
+            db.execute('UPDATE artwork_gallery SET is_primary=1 WHERE item_id=? AND id=?',(item_id,gallery_id))
             previous=db.execute('SELECT sha256 FROM item_artwork WHERE item_id=?',(item_id,)).fetchone()
             old_reference=artwork_url(item_id,previous['sha256']) if previous else None
             baseline=item.get('blankboxMetadataSnapshot') or metadata_snapshot(item)
@@ -1278,6 +1325,7 @@ class Box:
             if baseline.get('poster')==reference:baseline.pop('poster',None)
             item['blankboxMetadataSnapshot']=baseline
             if item.get('poster')==reference:item.pop('poster',None)
+            db.execute('UPDATE artwork_gallery SET is_primary=0 WHERE item_id=?',(item_id,))
             db.execute('DELETE FROM item_artwork WHERE item_id=?',(item_id,))
             db.execute("DELETE FROM metadata_artwork_refs WHERE entity_id=? AND source='owner-upload'",(local_work_id(item_id),))
             db.execute('UPDATE items SET data=? WHERE id=?',(json.dumps(item),item_id))
@@ -1397,7 +1445,8 @@ class Box:
         ordered=sorted(matches.values(),key=lambda item:(item['id'] not in linked,item.get('kind')!=kind,item.get('year')!=year,item['id']))
         return {'results':[self.public_item(item) for item in ordered[:25]],'moreMatches':len(ordered)>25 or len(linked)>25}
     def public_item(self,item):
-        public={key:item[key] for key in ('id','title','kind','year','releaseDate','description','poster','backdrop','genre','customGenres','duration','catalogDetails','versions','sources','bytes','mime','progress','favorite','addedAt','sample','backup','backupVerifiedAt','credit','metadataMatch','metadataOverrides','metadataProvenance','metadataPreference','blankboxMetadataSnapshot','artist','trackCount','discImport') if key in item}
+        public={key:item[key] for key in ('id','title','kind','year','digitalPlatforms','releaseDate','description','poster','backdrop','genre','customGenres','duration','catalogDetails','versions','sources','bytes','mime','progress','favorite','addedAt','sample','backup','backupVerifiedAt','credit','metadataMatch','metadataOverrides','metadataProvenance','metadataPreference','blankboxMetadataSnapshot','artist','trackCount','discImport') if key in item}
+        public['artworkGallery']=self.gallery_artwork(item['id'])
         public['sources']=[]
         for source in item.get('sources',[]):
             if not isinstance(source,dict):continue
@@ -1609,7 +1658,7 @@ class Box:
         if not valid_season(season) or season and kind!='tv':raise Problem('Choose a valid TV season or leave it unspecified.')
         source={'type':'physical','label':format,'location':str(data.get('location','')).strip()[:250],'addedAt':now()}
         if season:source['season']=season
-        limits={'edition':120,'barcode':80,'condition':120,'creator':250,'publisher':250,'platform':120,'volume':80,'issue':80,'region':80,'catalogNumber':120}
+        limits={'packaging':120,'releaseLabel':120,'edition':120,'barcode':80,'condition':120,'creator':250,'publisher':250,'platform':120,'volume':80,'issue':80,'region':80,'catalogNumber':120}
         for key,limit in limits.items():
             value=data.get(key,'')
             if not isinstance(value,str) or len(value)>limit:raise Problem(f'Invalid {key}.')
@@ -1624,7 +1673,7 @@ class Box:
             raise Problem('Physical copies changed. Reopen this item before saving.')
         ids=[row.get('sourceId') for row in rows]
         if any(not isinstance(identifier,str) for identifier in ids) or len(set(ids))!=len(ids) or set(ids)!=set(physical):raise Problem('Physical copies changed. Reopen this item before saving.')
-        limits={'format':120,'edition':120,'season':20,'barcode':80,'condition':120,'creator':250,'publisher':250,'platform':120,
+        limits={'packaging':120,'releaseLabel':120,'format':120,'edition':120,'season':20,'barcode':80,'condition':120,'creator':250,'publisher':250,'platform':120,
                 'volume':80,'issue':80,'region':80,'catalogNumber':120,'location':250}
         identity=('format','edition','season','barcode','creator','publisher','platform','volume','issue','region','catalogNumber')
         originals={identifier:dict(source) for identifier,source in physical.items()}
@@ -1633,7 +1682,7 @@ class Box:
         for row in rows:
             values={}
             for key,limit in limits.items():
-                value=row.get(key,'')
+                value=row.get(key,physical[row['sourceId']].get(key,'') if key in ('packaging','releaseLabel') else '')
                 if not isinstance(value,str) or len(value)>limit:raise Problem(f'Invalid physical {key}.')
                 values[key]=value.strip()
             if values['format'] not in PHYSICAL_FORMATS or item['kind'] not in PHYSICAL_FORMATS[values['format']]:
@@ -1820,7 +1869,7 @@ class Box:
         item=self.get_item(item_id);ensure_item_model(item)
         index=next((index for index,source in enumerate(item['sources']) if source.get('id')==source_id),-1)
         if index<0:raise Problem('That source is no longer attached.',404)
-        if len(item['sources'])==1:return {**self.remove_item(item_id),'item':None}
+        if len(item['sources'])==1 and not item.get('digitalPlatforms'):return {**self.remove_item(item_id),'item':None}
         source=item['sources'][index];staged=None
         if source.get('type')=='local':
             relative=source.get('storedPath') or item.get('storedPath')
@@ -1833,6 +1882,8 @@ class Box:
                 os.replace(managed,staged)
         try:
             removed=item['sources'].pop(index);version_id=removed.get('versionId')
+            for record in item.get('digitalPlatforms',[]):
+                if record.get('physicalSourceId')==source_id:record['physicalSourceId']=''
             if version_id and not any(current.get('versionId')==version_id for current in item['sources']) and len(item['versions'])>1:item['versions']=[version for version in item['versions'] if version.get('id')!=version_id]
             hidden_id=None;hidden=None
             if removed.get('type') in ('jellyfin','plex') and removed.get('providerItemId'):
@@ -2919,7 +2970,7 @@ class Box:
             os.close(descriptor);created=True
             with self.db() as source,sqlite3.connect(destination) as exported:source.backup(exported)
             with sqlite3.connect(destination) as exported:
-                for table in ('connections','auth_sessions','users'):
+                for table in ('oidc_identities','connections','auth_sessions','users'):
                     exported.execute('DELETE FROM '+table)
                 exported.commit()
                 exported.execute('VACUUM')
@@ -3148,7 +3199,7 @@ class Box:
         # catalog is claimed again with its new access key.
         with sqlite3.connect(snap/'catalog.sqlite3') as clean:
             if clean.execute('PRAGMA integrity_check').fetchone()[0]!='ok':raise ValueError('Catalog backup integrity check failed.')
-            clean.execute('DELETE FROM connections');clean.execute('DELETE FROM auth_sessions');clean.execute('DELETE FROM users');clean.commit();clean.execute('VACUUM')
+            clean.execute('DELETE FROM oidc_identities');clean.execute('DELETE FROM connections');clean.execute('DELETE FROM auth_sessions');clean.execute('DELETE FROM users');clean.commit();clean.execute('VACUUM')
         # The portable restore copies the main database file, not a SQLite WAL.
         # Checkpoint after redaction so neither passwords nor provider keys can
         # remain only in the WAL and then reappear in a restored box.
@@ -3814,6 +3865,10 @@ class Box:
         if action=='restore-provider-covers':
             if data.get('confirm') is not True:raise Problem('Confirm the missing cover count first.')
             return self.restore_missing_provider_covers(data.get('expectedCount'))
+        if action=='gallery-primary':return self.select_gallery_artwork(data.get('id'),data.get('artworkId'))
+        if action=='gallery-remove':
+            if data.get('confirm') is not True:raise Problem('Confirm removal of this image.')
+            return self.remove_gallery_artwork(data.get('id'),data.get('artworkId'))
         if action=='artwork-candidates':return {'candidates':self.artwork_candidates(data.get('id'))}
         if action=='artwork-remove':
             if data.get('confirm') is not True:raise Problem('Confirm removal of this local cover.')
@@ -3942,6 +3997,10 @@ class Box:
             if not isinstance(media_inputs,list) or any(not isinstance(item,str) or item not in allowed_inputs for item in media_inputs) or len(media_inputs)>len(allowed_inputs) or len(set(media_inputs))!=len(media_inputs):raise Problem('Invalid media input selection.')
             physical_formats=value.get('physicalFormats',current_settings.get('physicalFormats',list(DEFAULT_PHYSICAL_FORMATS)))
             if not isinstance(physical_formats,list) or any(not isinstance(item,str) or item not in CURRENT_PHYSICAL_FORMATS for item in physical_formats) or len(physical_formats)>len(CURRENT_PHYSICAL_FORMATS) or len(set(physical_formats))!=len(physical_formats):raise Problem('Invalid physical format selection.')
+            physical_defaults=value.get('physicalDefaultFormats',current_settings.get('physicalDefaultFormats',{}))
+            if not isinstance(physical_defaults,dict) or any(kind not in KINDS or not isinstance(format,str) or format not in CURRENT_PHYSICAL_FORMATS or kind not in PHYSICAL_FORMATS[format] for kind,format in physical_defaults.items()):raise Problem('Choose a compatible default format for each media type.')
+            physical_search=value.get('physicalTitleSearchSource',current_settings.get('physicalTitleSearchSource','packs'))
+            if physical_search not in ('packs','household','connected'):raise Problem('Choose a valid default physical title search.')
             def saved_values(key,limit):
                 values=value.get(key,current_settings.get(key,[]))
                 if not isinstance(values,list) or len(values)>100 or any(not isinstance(item,str) or not item.strip() or len(item.strip())>limit for item in values):raise Problem(f'Invalid {key}.')
@@ -3970,7 +4029,7 @@ class Box:
                 raise Problem('Choose a detected optical drive or automatic selection.')
             if optical_drive and optical_drive not in audio_cd_devices() and optical_drive!=current_settings.get('opticalDrive',''):
                 raise Problem('That optical drive is not currently connected.')
-            streaming_services=value.get('streamingServices',[]);allowed_streaming={'netflix','prime-video','disney-plus','youtube','spotify','apple-tv'}
+            streaming_services=value.get('streamingServices',[]);allowed_streaming={'netflix','prime-video','disney-plus','youtube','spotify','apple-tv','movies-anywhere'}
             if not isinstance(streaming_services,list) or any(not isinstance(item,str) or item not in allowed_streaming for item in streaming_services) or len(streaming_services)>len(allowed_streaming) or len(set(streaming_services))!=len(streaming_services):raise Problem('Invalid streaming service selection.')
             help_tips=value.get('helpTipsEnabled',current_settings.get('helpTipsEnabled',True))
             if not isinstance(help_tips,bool):raise Problem('Help tips must be on or off.')
@@ -3980,7 +4039,9 @@ class Box:
                 attestation={'accepted':True,'acceptedAt':now(),'termsVersion':MEDIA_RIGHTS_TERMS_VERSION} if isinstance(requested,dict) and requested.get('accepted') is True and requested.get('termsVersion')==MEDIA_RIGHTS_TERMS_VERSION else None
             if setup_done and not current_settings.get('setupDone') and not attestation:
                 raise Problem('Confirm the media-use acknowledgement before finishing setup.')
-            settings={**DEFAULTS,'helpTipsEnabled':help_tips,'name':name,'opticalDrive':optical_drive,'setupDone':setup_done,'setupVersion':1,'setupMode':setup_mode,'setupStep':setup_step,'mediaProvider':media_provider,'mediaInputs':media_inputs,'physicalFormats':physical_formats,'physicalLocations':physical_locations,'gamePlatforms':game_platforms,'gamePlatformCatalogVersion':1,'sidebarShortcuts':sidebar_shortcuts,'sidebarShortcutVersion':1,'sidebarOrder':sidebar_order,'streamingServices':streaming_services,'remoteProvider':remote_provider,'autoImport':auto_folder,'autoProviderRefresh':auto_provider,'autoFolderCopy':auto_folder,'autoSourceIndex':auto_index,'autoImportMinutes':int(auto_minutes),'heroWatch':hero_watch,'heroMusic':hero_music,'heroBooks':hero_books,'heroPhotos':hero_photos,'heroComics':hero_comics,'heroGames':hero_games,'homeRows':home_rows,'homeHeroOrder':home_hero_order,'homeHeroSort':home_hero_sort,'retailStoreKinds':current_settings.get('retailStoreKinds',{}),'customRetailStores':current_settings.get('customRetailStores',[]),'mediaRightsAttestation':attestation}
+            try:service_overrides,custom_services=service_preferences(value.get('streamingServiceOverrides',current_settings.get('streamingServiceOverrides',[])),value.get('customStreamingServices',current_settings.get('customStreamingServices',[])))
+            except ValueError as error:raise Problem(str(error)) from error
+            settings={**DEFAULTS,'helpTipsEnabled':help_tips,'name':name,'opticalDrive':optical_drive,'setupDone':setup_done,'setupVersion':1,'setupMode':setup_mode,'setupStep':setup_step,'mediaProvider':media_provider,'mediaInputs':media_inputs,'physicalFormats':physical_formats,'physicalDefaultFormats':physical_defaults,'physicalTitleSearchSource':physical_search,'physicalLocations':physical_locations,'gamePlatforms':game_platforms,'gamePlatformCatalogVersion':1,'sidebarShortcuts':sidebar_shortcuts,'sidebarShortcutVersion':1,'sidebarOrder':sidebar_order,'streamingServices':streaming_services,'streamingServiceOverrides':service_overrides,'customStreamingServices':custom_services,'remoteProvider':remote_provider,'autoImport':auto_folder,'autoProviderRefresh':auto_provider,'autoFolderCopy':auto_folder,'autoSourceIndex':auto_index,'autoImportMinutes':int(auto_minutes),'heroWatch':hero_watch,'heroMusic':hero_music,'heroBooks':hero_books,'heroPhotos':hero_photos,'heroComics':hero_comics,'heroGames':hero_games,'homeRows':home_rows,'homeHeroOrder':home_hero_order,'homeHeroSort':home_hero_sort,'retailStoreKinds':current_settings.get('retailStoreKinds',{}),'customRetailStores':current_settings.get('customRetailStores',[]),'mediaRightsAttestation':attestation}
             for key in ('jellyfinUrl','plexUrl','immichUrl','remoteUrl'):
                 url=value.get(key,'')
                 if not isinstance(url,str) or len(url)>2000:raise Problem('Invalid service address.')
@@ -4090,6 +4151,9 @@ class Box:
                 retired_releases,retired_contents=self.edit_physical_sources(item,data['physicalSources'])
             if 'digitalSources' in data:
                 self.edit_digital_sources(item,data['digitalSources'])
+            if 'digitalPlatforms' in data:
+                try:item['digitalPlatforms']=digital_platforms(data['digitalPlatforms'],item)
+                except ValueError as error:raise Problem(str(error)) from error
             changed={key for key in ('title','kind','year','description','genre','artist','releaseDate','duration') if key in data and before_fields.get(key)!=item.get(key)}
             if 'catalogDetails' in data:
                 before_details=before_fields.get('catalogDetails') or {};after_details=item.get('catalogDetails') or {}
@@ -4130,9 +4194,33 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if path=='/health/live':return self.json(self.box.liveness())
             if path=='/health/ready':
                 payload,status=self.box.readiness();return self.json(payload,status)
-            if path=='/api/auth/status':return self.json({'hasProfile':self.box.has_profile(),'accessKeyAvailable':True})
+            if path=='/api/auth/status':return self.json({'hasProfile':self.box.has_profile(),'accessKeyAvailable':True,'oidcEnabled':bool(self.box.oidc),'oidcName':self.box.oidc.config['name'] if self.box.oidc else ''})
+            if path=='/api/oidc/callback':
+                if not self.box.oidc:raise Problem('OIDC is not enabled.',404)
+                query=urllib.parse.parse_qs(parsed.query)
+                if any(len(values)!=1 for values in query.values()) or 'error' in query:raise Problem('Identity sign-in was not completed. Return to Blank Box and sign in locally.')
+                cookies=http.cookies.SimpleCookie(self.headers.get('Cookie',''));binding=cookies.get('blank_box_oidc')
+                pending,subject=self.box.oidc.complete(query.get('state',[''])[0],binding.value if binding else '',query.get('code',[''])[0])
+                with self.box.oidc.lock:
+                    if pending['generation']!=self.box.oidc.generation:raise Problem('This identity request was cancelled. Sign in locally and try again.',403)
+                    issuer=self.box.oidc.config['issuer']
+                    with self.box.db() as db:
+                        if pending['purpose']=='link':
+                            profile_id=pending['profileId']
+                            if not self.box.profile(profile_id):raise Problem('The local account is unavailable.')
+                            db.execute('INSERT INTO oidc_identities VALUES(?,?,?) ON CONFLICT(profile_id) DO UPDATE SET issuer=excluded.issuer,subject=excluded.subject',(issuer,subject,profile_id))
+                        else:
+                            row=db.execute('SELECT profile_id FROM oidc_identities WHERE issuer=? AND subject=?',(issuer,subject)).fetchone()
+                            if not row:raise Problem('This identity is not linked. Sign in locally, then link it in Settings.',403)
+                            profile_id=row['profile_id']
+                    _,cookie=self.create_session(profile_id,pending['remember'])
+                if self.box.oidc.config['redirectUri'].startswith('https:') and '; Secure' not in cookie:cookie+='; Secure'
+                self.send_response(303);self.send_header('Location','/');self.send_header('Set-Cookie',cookie);self.send_header('Set-Cookie','blank_box_oidc=; HttpOnly; SameSite=Lax; Path=/api/oidc; Max-Age=0');self.send_header('Cache-Control','no-store');self.send_header('Content-Length','0');self.end_headers();return
             if path.startswith('/api/') or path.startswith('/media/'):
                 if not self.authenticated():return self.json({'error':'Unlock Blank Box to continue.'},401)
+            if path=='/api/oidc/status':
+                with self.box.db() as db:linked=bool(db.execute('SELECT 1 FROM oidc_identities WHERE profile_id=?',(self.session_profile_id(),)).fetchone())
+                return self.json({'enabled':bool(self.box.oidc),'name':self.box.oidc.config['name'] if self.box.oidc else '', 'linked':linked})
             if path.startswith('/api/playback/plex/'):
                 parts=path.split('/')
                 if len(parts)!=6 or not parts[4] or not parts[5]:raise Problem('Plex playback address not found.',404)
@@ -4262,6 +4350,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.send_response(200);self.send_header('Content-Type',mime);self.send_header('Cache-Control','private,max-age=3600');self.send_header('Content-Length',str(len(data)));self.end_headers()
                 if self.command!='HEAD':self.wfile.write(data)
                 return
+            if path.startswith('/api/artwork/gallery/'):
+                parts=path.split('/')
+                if len(parts)!=7:raise Problem('Artwork not found.',404)
+                with self.box.db() as db:row=db.execute('SELECT sha256,image FROM artwork_gallery WHERE item_id=? AND id=?',(parts[4],parts[5])).fetchone()
+                if not row or row['sha256'][:16]!=parts[6]:raise Problem('Artwork not found.',404)
+                image=row['image'];self.send_response(200);self.send_header('Content-Type','image/jpeg');self.send_header('Content-Length',str(len(image)));self.send_header('Cache-Control','private,max-age=31536000,immutable');self.end_headers()
+                if self.command!='HEAD':self.wfile.write(image)
+                return
             if path.startswith('/api/artwork/'):
                 parts=path.split('/')
                 if len(parts)!=5 or not re.fullmatch(r'[A-Za-z0-9_-]{1,120}',parts[3]) or not re.fullmatch(r'[0-9a-f]{16}',parts[4]):raise Problem('Artwork not found.',404)
@@ -4293,9 +4389,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if path=='/credits':path='/credits.html'
             target=(self.box.web/path.lstrip('/')).resolve()
             if not inside(target,self.box.web):raise Problem('Not found.',404)
-            if path=='/' or not target.suffix:target=self.box.web/'index.html'
+            if path=='/' or (not target.suffix and path!='/downloads/LICENSE'):target=self.box.web/'index.html'
             if not target.is_file():raise Problem('Not found.',404)
-            return self.stream(target,mimetypes.guess_type(target.name)[0] or 'application/octet-stream')
+            return self.stream(target,'text/plain; charset=utf-8' if path=='/downloads/LICENSE' else mimetypes.guess_type(target.name)[0] or 'application/octet-stream')
         except Problem as e:self.json({'error':e.message},e.status)
         except (BrokenPipeError,ConnectionResetError):pass
         except (OSError,ValueError,KeyError) as e:self.json({'error':str(e)},400)
@@ -4362,6 +4458,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         refreshed=self.box.refresh_confirmed_pack_details(manifest['id'])
                 except (ValueError,OSError,sqlite3.Error) as error:raise Problem(str(error)) from error
                 return self.json({'ok':True,'manifest':manifest,**refreshed})
+            if path.startswith('/api/artwork/gallery/upload/'):
+                if not self.authenticated():raise Problem('Unlock Blank Box to continue.',401)
+                item_id=path.rsplit('/',1)[-1];query=urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                if self.headers.get('Content-Type','').split(';')[0]!='image/jpeg':raise Problem('Upload a prepared JPEG cover.',415)
+                size=int(self.headers.get('Content-Length','0'))
+                if not 0<size<=MAX_ARTWORK_BYTES:raise Problem('Cover must be smaller than 512 KB.',413)
+                return self.json(self.box.save_gallery_artwork(item_id,self.rfile.read(size),query.get('releaseId',[None])[0],query.get('label',[''])[0],query.get('role',['front'])[0]))
             if path.startswith('/api/artwork/upload/'):
                 if not self.authenticated():raise Problem('Unlock Blank Box to continue.',401)
                 item_id=path.rsplit('/',1)[-1]
@@ -4375,6 +4478,27 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not 0<size<=8*1024*1024:raise Problem('Request is too large or empty.',413)
             data=json.loads(self.rfile.read(size))
             if not isinstance(data,dict):raise Problem('Invalid request.')
+            if path=='/api/oidc/start':
+                if not self.box.oidc or not self.box.has_profile():raise Problem('Set up a local owner account and configure OIDC first.')
+                with self.box.oidc.lock:
+                    purpose=data.get('purpose','login');profile_id=None
+                    if purpose=='link':
+                        profile_id=self.session_profile_id();profile=self.box.profile(profile_id) if profile_id else None
+                        if not profile or not self.box.authenticate_profile(profile['username'],data.get('password')):raise Problem('Confirm your local password before linking an identity.',401)
+                    remember=data.get('remember',False)
+                    if not isinstance(remember,bool):raise Problem('Invalid sign-in preference.')
+                    url,binding=self.box.oidc.begin(purpose,profile_id,remember)
+                secure='; Secure' if self.box.oidc.config['redirectUri'].startswith('https:') else ''
+                return self.json({'url':url},cookie=f'blank_box_oidc={binding}; HttpOnly; SameSite=Lax; Path=/api/oidc; Max-Age=300{secure}')
+            if path=='/api/oidc/unlink':
+                with self.box.oidc.lock if self.box.oidc else nullcontext():
+                    profile_id=self.session_profile_id();profile=self.box.profile(profile_id) if profile_id else None
+                    if not profile or not self.box.authenticate_profile(profile['username'],data.get('password')):raise Problem('Confirm your local password before unlinking an identity.',401)
+                    with self.box.db() as db:
+                        db.execute('DELETE FROM oidc_identities WHERE profile_id=?',(profile_id,));db.execute('DELETE FROM auth_sessions WHERE profile_id=?',(profile_id,))
+                    if self.box.oidc:self.box.oidc.pending.clear();self.box.oidc.generation+=1
+                    _,cookie=self.create_session(profile_id,True)
+                    return self.json({'ok':True},cookie=cookie)
             if path=='/api/login':
                 ip=self.client_address[0]
                 with self.box.state_lock:
@@ -4429,7 +4553,7 @@ def main():
             'backupEveryHours':args.backup_every_hours,'host':args.host,'port':args.port,
         })
         runtime_lock=RuntimeLock(options['data'])
-        box=Box(options['data'],options['sources'],options['backup'])
+        box=Box(options['data'],options['sources'],options['backup'],oidc=options['oidc'])
     except (OSError,ValueError) as error:parser.error(str(error))
     if args.check_startup:
         try:

@@ -1,24 +1,19 @@
-# Blank Box release notes
+# Blank Box Community 0.1.0-beta.10
 
-## Docker user and storage settings — 0.1.0-beta.9
+We added clearer item views, physical entry preferences, collector details and optional identity-provider sign-in:
 
-We now support running the Docker container with your own non-root Linux UID/GID through Compose's `user` setting. Application files remain root-owned and readable by that user; your library data keeps its private permissions. The default stays `10001:10001`.
+- One physical-item screen for details, matching and confirmation, with saved format defaults by media type and a preferred title-search source.
+- The search-default and search buttons in physical intake have clear spacing and wrap on smaller screens.
+- Item details open in a popup over your library, with selectable editions, front/back artwork, visible playback and service searches, centered editors, and square, uncropped Music covers.
+- Separate packaging and release-label fields, with suggested and custom values.
+- Multiple saved artwork images for titles and physical editions, including front/back images and a chosen main cover.
+- Digital platform purchase, redemption and code-inclusion records, with optional links and a library badge.
+- Editable service names and links, custom services, and a Movies Anywhere shortcut.
+- Optional OIDC sign-in linked explicitly to your existing account; local password and recovery remain available.
+- UID/GID 1000:1000 for new Docker installations. Updates retain an existing installation’s numeric user, including 10001-owned data.
 
-You can store your library in a dedicated local host folder with a `/data` bind mount. Use `compose.override.yaml` for your settings, and make sure that folder and its contents belong to your selected user. Changing the mount does not copy an existing library. Update using your current settings before a separate user or storage move. See [Docker setup](guides/DOCKER.md#optional-choose-your-user-and-a-host-data-folder).
+Linux/Docker installations on beta.8 or beta.9 upgrade from catalog schema 20 to 22, preserving existing covers, accounts and collection records. Native Linux updates keep the configured port, sources and backup destination. Docker updates keep the existing project, storage and numeric user. Follow [Updates](UPDATES.md) rather than the fresh-install commands for an existing library.
 
-This Linux/Docker update keeps catalog schema 20, metapack reader 5 and the same four optional signed starter metapacks. We retain the existing experimental Windows download; this release does not replace it.
+Keep the paired pre-update recovery point and prior software. An older application cannot open the upgraded catalog; use the retained pre-update snapshot for a deliberate rollback and preserve later edits separately.
 
-
-We prepared this beta for public review after the owner tested beta.7 on a Linux installation. Beta.8 keeps catalog schema 20, metapack reader 5 and the same Core library behavior. We changed the package guides and notices; we did not change the household catalog format or original source files.
-
-- We rewrote the public guides and release text in Blank Box's owner voice. The Linux, Docker and Windows instructions identify the correct ZIP, setup path, updates, rollback and restore test steps.
-- We separated license notices for components included in each package from descriptions of separately installed services. The Linux/Docker notice covers that package's dependencies; the Windows notice also identifies the included isolated CPython runtime. The public source ZIP includes its own third-party notice and a working link to it.
-- We corrected the collection guide's metapack versions and coverage. This release contains one current signed copy each of Movies v4, Books v7, Music v5 and TV Shows v4; the CD proof pack is absent.
-
-From beta.7, we keep the platform-specific setup packages: the Linux/Docker ZIP carries Linux and Docker tools, and the Windows x64 ZIP carries Windows tools and its isolated Python runtime. Both share the same Core and optional starter packs. After a portable restore, reconnect Plex/Jellyfin with a reachable address and key, then use **Settings → System & About → Restore saved provider covers** to review and fill missing covers. We preserve uploaded covers and other title details; portable backups exclude provider keys.
-
-Beta.6's library improvements remain available. We reset Select items mode when leaving a section or page; improved EPUB page turns within long chapters; grouped audiobook files under one book title with separate listening progress; and added reviewed bulk attach actions for unlinked songs, episodes and simple split library records. We keep each selected file's source identity and require confirmation of the destination title.
-
-For an existing Linux installation, create and verify a separate-drive recovery point before running the new package's `install-linux.sh` without new configuration flags. Our installer retains the current configuration and creates a paired pre-update catalog and pack snapshot. See [Updates](UPDATES.md) for rollback and [Recovery](RECOVERY.md) for restore review. Linked source-drive originals stay on their drives and are outside a library recovery point; protect those bytes separately if needed.
-
-We still label Windows experimental pending real Windows and NTFS acceptance. [Platform status](PLATFORMS.md) states what has been checked for each target.
+The separate Windows download remains the experimental beta.8 package with schema 20; it does not include these changes. Check OIDC sign-in and recovery with your actual provider before relying on it.

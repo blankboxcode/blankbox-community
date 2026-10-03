@@ -1,6 +1,9 @@
 *
 !server.py
 !artwork.py
+!artwork_gallery.py
+!collector_features.py
+!oidc.py
 !metadata.py
 !catalog_details.py
 !edition_completion.py

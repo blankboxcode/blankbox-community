@@ -20,10 +20,13 @@ ask_port() {
 
 install_blankbox() {
   echo
-  echo "How should Blank Box be reached?"
-  echo "  1) This computer only"
-  echo "  2) Devices on my trusted home network"
-  echo "  3) Home network plus blankbox.local"
+  echo "Where will you open Blank Box?"
+  echo "  1) On this computer (direct access)"
+  echo "  2) On my trusted home network (using this server's IP address)"
+  echo "  3) The same home-network access, plus the name blankbox.local"
+  echo "Options 2 and 3 also work on this computer. The name in option 3 is optional."
+  echo "None of these choices sets up access from outside your home or turns off outgoing Internet access."
+  echo "A private proxy or VPN you already configured has its own access settings."
   read -r -p "Choose [1-3]: " access
   [[ "${access}" =~ ^[123]$ ]] || { echo "Choose 1, 2, or 3." >&2; return 1; }
   port="$(ask_port)" || return 1
@@ -58,8 +61,9 @@ install_blankbox() {
   temporary=""
 
   echo
-  [[ "${access}" == "1" ]] && echo "Open http://127.0.0.1:${port}" || echo "Open http://SERVER-IP:${port}"
-  [[ "${access}" != "3" ]] || echo "Friendly address: http://blankbox.local:${port}"
+  echo "On this computer, open http://127.0.0.1:${port}"
+  [[ "${access}" == "1" ]] || echo "On another home-network device, open http://SERVER-IP:${port} (replace SERVER-IP with this server's local IP address)."
+  [[ "${access}" != "3" ]] || echo "You can also use http://blankbox.local:${port} where local discovery works; use the IP address if the name does not work."
   echo "Access key: /var/lib/blankbox/access-key.txt"
 }
 

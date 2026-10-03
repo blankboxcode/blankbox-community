@@ -5,7 +5,7 @@ export type LibraryPage = { items:MediaItem[];total:number;offset:number;limit:n
 export type LibraryPageOptions = {excludeSamples?:boolean;q?:string;view?:string;kind?:string;genre?:string;status?:string;sort?:string;favorites?:boolean;facet?:string;shelves?:boolean;collection?:string;offset?:number;limit?:number};
 export type JobState = { catalogRevision?:string;browseIndexStatus?: 'building'|'ready'|'unavailable'; jobs: Job[]; collectionIndexStatus: 'building' | 'ready' | 'unavailable' };
 
-export type AuthStatus = { hasProfile: boolean; accessKeyAvailable: boolean };
+export type AuthStatus = { hasProfile: boolean; accessKeyAvailable: boolean; oidcEnabled?:boolean; oidcName?:string };
 export type CollectingTarget = { identifier?: { namespace: string; value: string }; id: string; title: string; kind: Kind; year: number | null; format: string; edition?: string; releaseId?: string | null; season?: string | null; workId?: string | null; createdAt: string; status: string; itemIds: string[] };
 export type CompletionMember = { position: number; title: string; kind: Kind; year: number | null; format: string; workId: string | null; ignored: boolean; outcome: 'owned' | 'library' | 'wanted' | 'missing' | 'ignored' | 'review'; ownershipStatus: string; itemIds: string[]; matchBasis: string; intentMatchAmbiguous?: boolean };
 export type CompletionSet = { id: string; name: string; kind: 'custom' | 'reference'; mediaKind: Kind; source: string; sourceVersion: string; sourceLicense: string; createdAt: string; updatedAt: string; members: CompletionMember[] };
@@ -130,6 +130,10 @@ export interface BlankBoxClient {
   action(action: string, data?: Record<string, unknown>): Promise<ApiResult>;
   uploadMetadataPack(file: File): Promise<MetadataPackInfo>;
   uploadArtwork(itemId:string, image:Blob):Promise<MediaItem>;
+  uploadGalleryArtwork(itemId:string,image:Blob,details:{releaseId:string;label:string;role:string}):Promise<MediaItem>;
+  oidcStatus():Promise<{enabled:boolean;name:string;linked:boolean}>;
+  startOIDC(purpose:'login'|'link',password?:string,remember?:boolean):Promise<string>;
+  unlinkOIDC(password:string):Promise<void>;
   metadataSearch(query: { title?: string; kind?: Kind; year?: number | null; namespace?: string; value?: string; scope?: 'all' | 'packs' | 'saved'; excludeItemId?: string }): Promise<MetadataCandidate[]>;
   metadataCreate(record: { title: string; kind: Kind; level: 'work' | 'release'; year?: number | null; workId?: string; format?: string; edition?: string; season?: string }): Promise<MetadataEntity>;
   metadataGet(id: string): Promise<MetadataEntity>;
@@ -216,6 +220,14 @@ export class HttpBlankBoxClient implements BlankBoxClient {
     if (!result.manifest) throw new BlankBoxClientError('The metadata pack was not installed.', 500);
     return result.manifest;
   }
+
+  async uploadGalleryArtwork(itemId:string,image:Blob,details:{releaseId:string;label:string;role:string}):Promise<MediaItem> {
+    const query=new URLSearchParams(details);const response=await fetch(`/api/artwork/gallery/upload/${encodeURIComponent(itemId)}?${query}`,{method:'POST',headers:{'Content-Type':'image/jpeg'},body:image});
+    const result=await responseJson<ApiResult>(response,'The artwork could not be saved.');if(!result.item)throw new Error('The artwork could not be saved.');return result.item;
+  }
+  async oidcStatus():Promise<{enabled:boolean;name:string;linked:boolean}> {return responseJson(await fetch('/api/oidc/status',{cache:'no-store'}),'Unable to read identity settings.');}
+  async startOIDC(purpose:'login'|'link',password?:string,remember=false):Promise<string> {const result=await responseJson<{url:string}>(await fetch('/api/oidc/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({purpose,password,remember})}),'Identity sign-in could not start.');return result.url;}
+  async unlinkOIDC(password:string):Promise<void> {await responseJson(await fetch('/api/oidc/unlink',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password})}),'The identity could not be unlinked.');}
 
   async uploadArtwork(itemId:string,image:Blob):Promise<MediaItem> {
     const response=await fetch(`/api/artwork/upload/${encodeURIComponent(itemId)}`,{

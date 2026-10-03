@@ -22,6 +22,10 @@ export const physicalFormats = [
 ] as const;
 
 export type PhysicalFormat = (typeof physicalFormats)[number];
+export type PhysicalFormatDefaults = Partial<Record<Kind, PhysicalFormat>>;
+export const physicalSearchSources = ['packs', 'household', 'connected'] as const;
+export type PhysicalSearchSource = (typeof physicalSearchSources)[number];
+export const physicalPreferenceKinds: Kind[] = ['movie', 'tv', 'music', 'book', 'comic', 'game'];
 
 export const defaultPhysicalFormats: PhysicalFormat[] = [
   'DVD',
@@ -55,6 +59,8 @@ export type PhysicalDraft = {
   genre: string;
   description: string;
   edition: string;
+  packaging: string;
+  releaseLabel: string;
   season: string;
   barcode: string;
   condition: string;
@@ -76,6 +82,8 @@ export const emptyPhysicalDraft: PhysicalDraft = {
   genre: '',
   description: '',
   edition: '',
+  packaging: '',
+  releaseLabel: '',
   season: '',
   barcode: '',
   condition: '',
@@ -100,6 +108,17 @@ export function physicalKindOptions(format: PhysicalFormat): Kind[] {
   if (['DVD', 'Blu-ray', '4K UHD Blu-ray', 'VHS', 'Betamax', 'LaserDisc'].includes(format)) return ['movie', 'tv'];
   if (format === 'Other') return ['movie', 'tv', 'music', 'book', 'comic', 'game', 'photo', 'home-video', 'file'];
   return [defaultKindForFormat(format)];
+}
+
+export function preferredPhysicalFormat(kind: Kind, formats: PhysicalFormat[], defaults: PhysicalFormatDefaults = {}, fallback?: PhysicalFormat): PhysicalFormat | undefined {
+  const compatible = formats.filter(format => physicalKindOptions(format).includes(kind));
+  const preferred = defaults[kind];
+  return preferred && compatible.includes(preferred) ? preferred : fallback && compatible.includes(fallback) ? fallback : compatible[0];
+}
+
+export function physicalDraftForMediaKind(draft: PhysicalDraft, kind: Kind, formats: PhysicalFormat[], defaults: PhysicalFormatDefaults = {}): PhysicalDraft {
+  const format = preferredPhysicalFormat(kind, formats, defaults, draft.format);
+  return format ? physicalDraftForKind({ ...draft, format }, kind) : draft;
 }
 
 export function physicalDraftForFormat(draft: PhysicalDraft, format: PhysicalFormat): PhysicalDraft {

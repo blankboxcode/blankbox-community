@@ -23,7 +23,7 @@ To use Blank Box from other devices on a trusted home LAN, change the bind addre
 
 ## 2. Add media and backup mounts
 
-For an initial look at an empty library, you can skip this section and run the startup command below. To add your own folders, first make sure the host paths exist and your container user can read media and write backups. The default UID/GID is `10001:10001`; the optional user override below can use your existing IDs. Use a plain text editor to create the new override file; do not edit the signed `compose.yaml`.
+For an initial look at an empty library, you can skip this section and run the startup command below. To add your own folders, first make sure the host paths exist and your container user can read media and write backups. For a new named-volume installation, the default UID/GID is `1000:1000`. To use another UID, follow the correctly owned data-folder example below and set `BLANKBOX_UID`/`BLANKBOX_GID` in your local `.env`, or select the user in your local Compose override. The settings do not change folder ownership. Use a plain text editor to create the new override file; do not edit the signed `compose.yaml`.
 
 Create `compose.override.yaml` with existing media as read-only mounts and a backup destination as a read/write mount:
 
@@ -60,7 +60,7 @@ Then the normal `docker compose` and `./upgrade-docker.sh` commands use the driv
 
 ## Optional: choose your user and a host data folder
 
-You can run Blank Box using an existing non-root UID/GID, such as `1000:1000`, and store its library in a dedicated host folder. Check your intended Linux account's IDs with `id -u` and `id -g`. Setting `PUID` or `PGID` environment variables does not change the process user; use Compose's `user` setting.
+Our new-install default is `1000:1000`. To use a different non-root UID, prepare a dedicated host data folder owned by that user as shown below, and select the IDs in `.env` or `compose.override.yaml`. The default new named volume is initialized for UID 1000; changing the process user alone does not change its ownership. Check your intended Linux account's IDs with `id -u` and `id -g`. Setting `PUID` or `PGID` environment variables does not change the process user; use Compose's `user` setting.
 
 For a **new, empty** data folder on a normal Linux Docker host, replacing these example IDs and path as needed:
 
@@ -146,7 +146,7 @@ docker compose up --detach --wait
 
 Upgrade from a newly extracted release package:
 
-Copy your existing `.env` and Compose override into the newly extracted folder; keep the same project name, user and volume or bind folder. Verify the new package with your installed trusted verifier first (see [Updates](../UPDATES.md)).
+Copy your existing `.env` and any local Compose overrides into the newly extracted folder; keep the same project name, image setting, user and volume or bind folder. Preserve referenced secret files. If any bind path is relative, make sure it still points to the same existing folder after moving to the new release directory. Verify the new package with your installed trusted verifier first (see [Updates](../UPDATES.md)).
 
 If you also want to change the user or move your data to a host folder, upgrade using your current settings first and check that you can sign in. Then follow the existing-library guidance above for the separate move. Changing those settings before an upgrade can prevent the previous image from reading your library or making its recovery snapshot.
 
@@ -154,7 +154,7 @@ If you also want to change the user or move your data to a host folder, upgrade 
 ./upgrade-docker.sh
 ```
 
-The upgrade helper verifies the package, builds a uniquely tagged candidate, stops Core, snapshots SQLite and its installed packs, waits for health, and restores the previous image and catalog if activation fails. On success it advances the configured local image tag so a later ordinary `docker compose up` uses the accepted version. The previous image tag and paired catalog snapshot are printed for manual rollback. Keep both. Do not share one mutable image tag between installations that need independent upgrade schedules.
+The upgrade helper verifies the package, builds a uniquely tagged candidate, stops Core, snapshots SQLite and its installed packs, waits for health, and restores the previous image and catalog if activation fails. It discovers your existing container's UID/GID and saves them in `.env` before activation. An existing `10001:10001` library therefore keeps that user when the image default changes; an existing `1000:1000` library keeps 1000. It does not change data ownership. A conflicting direct user override is refused before stopping the service. If you removed the old container, start your current release with its current settings before running the update helper. On success it advances the configured local image tag so a later ordinary `docker compose up` uses the accepted version. The previous image tag and paired catalog snapshot are printed for manual rollback. Keep both. This release migrates older beta.8/beta.9 catalogs from schema 20 to 22; an older image requires its pre-update catalog/assets snapshot. See [Rollback](../UPDATES.md#rollback). Do not share one mutable image tag between installations that need independent upgrade schedules.
 
 ## Reset or uninstall carefully
 

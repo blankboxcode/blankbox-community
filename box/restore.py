@@ -23,8 +23,8 @@ def restore_catalog_export(export_file,destination):
         for table in ('items','physical_releases','owned_copies','package_contents','inventory_links'):
             if not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",(table,)).fetchone():
                 raise ValueError('This is not a complete Blank Box catalog export.')
-        for table in ('connections','auth_sessions','users'):
-            if db.execute('SELECT COUNT(*) FROM '+table).fetchone()[0]:
+        for table in ('oidc_identities','connections','auth_sessions','users'):
+            if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",(table,)).fetchone() and db.execute('SELECT COUNT(*) FROM '+table).fetchone()[0]:
                 raise ValueError('This file contains account or connection secrets, not a portable export.')
         count=db.execute('SELECT COUNT(*) FROM items').fetchone()[0]
     destination.mkdir(mode=0o700,parents=True,exist_ok=True)

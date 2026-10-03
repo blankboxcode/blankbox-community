@@ -56,11 +56,11 @@ def migration_statements():
 
 
 def compact(item):
-    result={k:item[k] for k in ('id','title','kind','year','releaseDate','poster','backdrop','genre','customGenres','collectionGenres','collectionGenreBasis','duration','progress','favorite','addedAt','sample','artist','metadataPreference','activity') if k in item}
+    result={k:item[k] for k in ('id','title','kind','year','digitalPlatforms','releaseDate','poster','backdrop','genre','customGenres','collectionGenres','collectionGenreBasis','duration','progress','favorite','addedAt','sample','artist','metadataPreference','activity') if k in item}
     result['description']=str(item.get('description') or '')[:400]
     # Rich source snapshots, episode/track trees and edition details are fetched
     # only when a title is opened. All physical rows remain for accurate rules.
-    fields=('id','type','label','url','mime','available','addedAt','edition','location','platform','barcode','discId','creator','season','providerItemId','metadataIdentifiers')
+    fields=('packaging','releaseLabel','id','type','label','url','mime','available','addedAt','edition','location','platform','barcode','discId','creator','season','providerItemId','metadataIdentifiers')
     result['sources']=[{k:s[k] for k in fields if k in s} for s in item.get('sources',[]) if s.get('type')=='physical']
     selected=[];types=set()
     for source in item.get('sources',[]):
@@ -86,9 +86,9 @@ class LibraryBrowse:
         stamp=refs.stamp if ready else None
         with self.lock, self.box.db() as db:
             projection=db.execute("SELECT value FROM browse_state WHERE key='projection'").fetchone()
-            if not projection or projection[0]!='2':
+            if not projection or projection[0]!='3':
                 db.execute('INSERT OR IGNORE INTO browse_dirty SELECT id FROM items')
-                db.execute("INSERT INTO browse_state VALUES('projection','2') ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+                db.execute("INSERT INTO browse_state VALUES('projection','3') ON CONFLICT(key) DO UPDATE SET value=excluded.value")
             prior=db.execute("SELECT value FROM browse_state WHERE key='packs'").fetchone()
             if ready and (not prior or prior[0]!=stamp):
                 db.execute('INSERT OR IGNORE INTO browse_dirty SELECT id FROM items')
@@ -132,7 +132,8 @@ class LibraryBrowse:
             added=max([item.get('addedAt','')]+[s.get('addedAt','') for s in item.get('sources',[])])
             released=item.get('releaseDate') or (str(item['year'])+'-01-01' if item.get('year') else '')
             edition=' '.join(sorted(s.get('edition','') for s in item.get('sources',[])))
-            text=' '.join([item.get('title',''),item.get('genre',''),str(item.get('year') or ''),item.get('description',''),*genres(item),*[str(s.get(k) or '') for s in item.get('sources',[]) for k in ('label','edition','volume','issue','region','catalogNumber','mime','location','path','barcode','creator','publisher','platform')]])
+            text=' '.join([item.get('title',''),item.get('genre',''),str(item.get('year') or ''),item.get('description',''),*genres(item),*[str(s.get(k) or '') for s in item.get('sources',[]) for k in ('packaging','releaseLabel','label','edition','volume','issue','region','catalogNumber','mime','location','path','barcode','creator','publisher','platform')]])
+            text+=' '+' '.join(str(record.get(key) or '') for record in item.get('digitalPlatforms',[]) for key in ('platform','status','notes'))
             digital=int(any(s.get('type') in ('local','digital','jellyfin','plex','emby') for s in item.get('sources',[])))
             db.execute('INSERT INTO browse_documents VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(item_id) DO UPDATE SET data=excluded.data,title_key=excluded.title_key,search_key=excluded.search_key,kind=excluded.kind,added=excluded.added,released=excluded.released,edition=excluded.edition,favorite=excluded.favorite,digital=excluded.digital,sample=excluded.sample',(item['id'],json.dumps(card),normalized(item['title']),normalized(text),item['kind'],added,released,normalized(edition),bool(item.get('favorite')),digital,bool(item.get('sample'))))
             db.execute('DELETE FROM browse_genres WHERE item_id=?',(item['id'],))

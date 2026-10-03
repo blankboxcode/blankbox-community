@@ -12,7 +12,7 @@ Complete the setup screens. Choose physical media, files, or an existing Plex/Je
 
 Start with one real item you can check easily:
 
-- **Physical:** open Physical Media, enter its title or scan its barcode, review the proposed title and edition, and record its format and location. A title match alone does not establish the exact edition.
+- **Physical:** open **Add physical item**, enter the title, format and location, and search or add your entered details on that same screen. Blank Box Database searches installed reference packs; My Library finds titles you already saved. Set starting formats and title search in **Settings → Collection → Physical Media preferences**. You can also scan a barcode and review its copy details here. A title match alone does not establish the exact edition. See [Physical items and defaults](guides/COLLECTIONS.md#add-physical-items-and-choose-your-defaults).
 - **Files:** index a configured source. For a large drive, use **Match all files (preview)**, inspect the counts and matching warning, then confirm the bulk links. Use **Needs review** to resolve the remaining files. Copying into managed storage is a separate, explicit action; indexing and linking leave originals where they are. See [Large library import](guides/LARGE-LIBRARY.md).
 - **Plex/Jellyfin:** connect your server and sync its catalog. Check the source attached to one title. Connected access does not mean you own a physical copy.
 
@@ -20,7 +20,7 @@ When the same title already exists, review attaching the new evidence to it. Kee
 
 ## 3. Check the details and a collection
 
-Open the item's details and Sources. Confirm title, year, edition and copy count. Correct one field and save it. Choose the details source you prefer; your own edits and confirmed facts remain in the household catalog. Save a collection, add the item, and reopen it. Reference suggestions are not ownership records and require review.
+Open an item and confirm its title, year, editions and copy count. Use **Edit title details** for shared information or select an edition and choose **Edit this copy** for its fields. **Edit artwork** is beside the cover; **Choose details source** selects the saved information you prefer. Check playback using the file or connected-app buttons. Your edits and confirmed facts stay in your library. Save a collection, add the item, and reopen it. Reference suggestions do not add owned copies.
 
 ## 4. Protect your work
 
