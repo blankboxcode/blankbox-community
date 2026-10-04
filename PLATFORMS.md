@@ -7,7 +7,7 @@ Choose the full Community ZIP for native Linux, the small setup ZIP for a prebui
 | Target | Installation model | Status |
 | --- | --- | --- |
 | Linux | System Python 3.10+, SQLite FTS5, systemd for service installation | Primary native installation path. Use the Linux guide for setup and updates. |
-| Docker on Linux/amd64 | Public prebuilt image, small signed setup bundle, non-root user (1000:1000 for new installations; existing IDs retained on update), persistent named volume or dedicated bind folder | Verified registry pull, setup/update and recovery path. ARM and Docker-manager-specific acceptance remain separate. Optical hardware needs compatible host access. |
+| Docker on Linux/amd64 | Public prebuilt image, small signed setup bundle, non-root user (1000:1000 for new installations; existing IDs retained on update), persistent named volume or dedicated bind folder | Verified registry pull, setup/update and recovery path, plus Portainer CE 2.45.1 Web editor deployment. ARM, other managers and repository/automatic-update modes remain separate. Optical hardware needs compatible host access. |
 | Windows 10/11 x64 | Included CPython 3.13.15, foreground process or per-user logon task | Experimental older download. Native Windows/NTFS and full-machine reboot acceptance remain incomplete. Do not use it to open a schema 22 catalog. |
 
 We do not claim an always-on Windows service, Windows ARM, Docker Desktop optical passthrough, universal browser codecs, transcoding or protected video-disc extraction. Our native audio-CD adapters use read-only APIs and produce WAV; optional existing Linux utilities can produce FLAC. Real-drive acceptance remains device-specific.

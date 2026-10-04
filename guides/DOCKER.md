@@ -2,6 +2,8 @@
 
 We provide a prebuilt image for a Linux Intel/AMD host with Docker Engine and the Docker Compose plugin. Python 3.10+ verifies the small setup bundle and handles checked updates. Docker pulls the application from `ghcr.io/blankboxcode/blankbox-community`; you do not need a local application build.
 
+For an existing locally built image, follow [Switch to the official Docker image](DOCKER-MIGRATION.md). For a new Portainer stack or a later management handover, follow [Portainer](PORTAINER.md).
+
 Run `docker info` to check access to Docker before installing or updating. If it reports permission denied but `sudo docker info` works, use `sudo` for the Docker commands in this guide and run updates with `sudo ./upgrade-docker.sh`. Blank Box still runs inside its container with the configured non-root UID/GID. Keep your Compose project name and other settings in the installation's `.env`; `sudo` may omit settings exported only in your shell. You do not need to change library ownership or user IDs to fix host Docker access.
 
 ## 1. Extract and configure
@@ -168,7 +170,7 @@ The helper verifies the bundle and signed image descriptor, checks the existing 
 
 ## Compose URLs and Docker managers
 
-The ready-to-use [Compose file](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/deploy/docker-image/compose.yaml) uses `image:` with an exact digest and has no `build:` entry. In a manager that supports a Git repository, use `https://github.com/blankboxcode/blankbox-community`, branch `main`, and Compose path `deploy/docker-image/compose.yaml`. A manager that accepts a Compose file URL can use the linked raw URL. Add your port, user and mount settings as described above. Portainer/Dockhand-specific deployment and update behavior still needs checking in your own setup.
+The ready-to-use [Compose file](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/deploy/docker-image/compose.yaml) uses `image:` with an exact digest and has no `build:` entry. In a manager that supports a Git repository, use `https://github.com/blankboxcode/blankbox-community`, branch `main`, and Compose path `deploy/docker-image/compose.yaml`. A manager that accepts a Compose file URL can use the linked raw URL. Add your port, user and mount settings as described above. We have checked Portainer Community Edition 2.45.1 Web editor deployment on Linux/amd64; follow [Portainer](PORTAINER.md) for setup and storage-preserving handover. Other managers, repository deployment modes and automatic updates need their own checks. Keep Portainer's saved definition synchronized if the checked CLI updater recreates its container.
 
 For a **new empty library**, a current Compose plugin with Git URL support can load the file directly:
 

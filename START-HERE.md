@@ -25,13 +25,15 @@ For an **existing installation**, use [Update your installation](UPDATES.md#upda
 - Windows x64: extract the Windows package and open `setup-windows.cmd`. Its private Python runtime is included. See `guides/WINDOWS.md`. Windows remains experimental pending real-machine acceptance.
 - Direct Python from the full Community ZIP: `python3 server.py --data /path/to/new-data --port 25265`.
 
+Already running a locally built Docker image? Follow [the short migration guide](guides/DOCKER-MIGRATION.md). For Portainer, follow [the Portainer guide](guides/PORTAINER.md); the normal stack pulls our prebuilt image.
+
 ## Choose where to open your Linux installation
 
 | Linux setup choice | Open Blank Box here |
 | --- | --- |
-| **1 — On this computer** | On the computer running Blank Box: `http://127.0.0.1:25265`. |
-| **2 — Trusted home network by IP** | On that computer, or another home-network device using `http://SERVER-IP:25265`. |
-| **3 — The same network plus blankbox.local** | The same access as option 2, with `http://blankbox.local:25265` as an optional friendly address. The IP address still works. |
+| **1: On this computer** | On the computer running Blank Box: `http://127.0.0.1:25265`. |
+| **2: Trusted home network by IP** | On that computer, or another home-network device using `http://SERVER-IP:25265`. |
+| **3: The same network plus blankbox.local** | The same access as option 2, with `http://blankbox.local:25265` as an optional friendly address. The IP address still works. |
 
 Replace `SERVER-IP` with the server's local IP address and use the port you selected. None of these choices automatically enables access from outside your home or disables outgoing Internet access. A private proxy or VPN configured separately has its own access settings. See [Linux](guides/LINUX.md) for the numbered setup steps and [Networking](guides/NETWORKING.md) if another device cannot connect.
 

@@ -33,6 +33,8 @@ You only need `setup-linux.sh` again if you also want to change your access mode
 
 ### Docker on Linux
 
+For the shortest path from a locally built image, use [Switch to the official Docker image](guides/DOCKER-MIGRATION.md). [Portainer](guides/PORTAINER.md) covers a separate management handover after the image update works.
+
 Use the small Docker image setup ZIP to update or switch from a locally built image. It uses the same application and catalog schema as the current Linux/Docker release; switching delivery methods does not move your library.
 
 1. Keep the current container available. If you stopped or removed it, start it from its existing release folder with its current settings first.
@@ -45,6 +47,8 @@ Use the small Docker image setup ZIP to update or switch from a locally built im
 ```
 
 The helper authenticates the image descriptor, checks the existing project/user/mounts and pulls the exact digest before stopping. It then creates a paired snapshot and checks readiness. Failed activation restores the previous image and snapshot. On success it saves the accepted digest and retained UID/GID in `.env`, including `10001:10001` from older installations. It does not move data or change ownership. New installations use `1000:1000`. If Docker commands need sudo, run `sudo ./upgrade-docker.sh`; host Docker access does not change the container user.
+
+The image updater preserves the incoming `.env` file owner. If an earlier update left it root-owned, correct its intended Linux-user ownership before copying it. Save access settings such as `BLANKBOX_BIND_ADDRESS` and `BLANKBOX_PUBLISHED_PORT` in `.env` so they survive sudo.
 
 Sign in at your usual address and check your library. Keep the printed previous image tag and pre-update snapshot. Ordinary `docker compose up` in the accepted setup folder keeps its saved image digest. Changing user IDs or moving storage is a separate operation after the update works. See [Docker](guides/DOCKER.md) for bind mounts and source-folder access.
 

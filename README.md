@@ -10,8 +10,8 @@
 
 <p align="center">
   <a href="#download">Download</a> ·
-  <a href="#install-from-a-zip">ZIP installation</a> ·
   <a href="#quick-start-with-docker">Docker quick start</a> ·
+  <a href="#install-from-a-zip">ZIP installation</a> ·
   <a href="#update-an-existing-installation">Update</a> ·
   <a href="https://github.com/blankboxcode/blankbox-community/wiki">Wiki</a> ·
   <a href="https://github.com/blankboxcode/blankbox-community/issues/new/choose">Feedback &amp; help</a>
@@ -32,13 +32,13 @@ No Blank Box online account, subscription or connected media server is required.
 
 ## Download
 
-Choose the setup download for your computer. Native installation ZIPs include the application; the small Docker ZIP contains setup tools and pulls our prebuilt image.
+For Docker, use the small setup ZIP to pull our prebuilt image. For a Linux background service or Windows installation, use the native application ZIP for your computer.
 
 | Your installation | Download | Instructions |
 | --- | --- | --- |
-| Linux with systemd | [Linux / Docker ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v0.1.0-beta.10/blankbox-community-0.1.0-beta.10.zip) | [Linux ZIP install](#linux) |
 | Docker on Linux (Intel/AMD) | [Docker setup ZIP](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/downloads/blankbox-docker-0.1.0-beta.10-1.zip) | [Docker quick start](#quick-start-with-docker) |
-| Windows 10/11 x64 — **experimental** | [Windows x64 ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v0.1.0-beta.8/blankbox-community-0.1.0-beta.8-windows-x64.zip) | [Windows ZIP install](#windows-experimental) |
+| Linux with systemd | [Linux installation ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v0.1.0-beta.10/blankbox-community-0.1.0-beta.10.zip) | [Linux ZIP install](#linux) |
+| Windows 10/11 x64 (**experimental**) | [Windows x64 ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v0.1.0-beta.8/blankbox-community-0.1.0-beta.8-windows-x64.zip) | [Windows ZIP install](#windows-experimental) |
 
 **The application comes with a prebuilt interface: you do not need Node.js, npm or a source build.** Windows includes its own Python runtime; native Linux needs Python 3.10+.
 
@@ -50,13 +50,45 @@ The Windows download remains beta.8/schema 20 and does not include this Linux/Do
 
 These quick starts create a **fresh library**. For an existing library, follow [the update steps below](#update-an-existing-installation), [Updates](UPDATES.md) or [Recovery](RECOVERY.md). GitHub's automatic source archives and the source ZIP are developer downloads, not the guided installation package.
 
+## Quick start with Docker
+
+Already running a locally built Docker image? Use the [short migration guide](guides/DOCKER-MIGRATION.md) to keep your library, user and settings while switching to the official image.
+
+Requires a **Linux Intel/AMD host with Docker Engine and the Docker Compose plugin**, plus Python 3.10+ for signature verification and checked updates. Docker pulls our public image from GitHub Container Registry; there is no local application build or GitHub sign-in requirement.
+
+1. Download, verify and extract the small **Docker setup ZIP** above. Open a terminal in its folder, where `compose.yaml`, `image.json` and `setup-docker.sh` are visible.
+2. Start a fresh empty library:
+
+   ```sh
+   cp -n blankbox.env.example .env
+   ./setup-docker.sh
+   ```
+
+   If Docker commands need `sudo` on your host, use `sudo ./setup-docker.sh` and `sudo docker compose` for the commands below. The container still runs as a non-root user.
+
+3. Read the recovery key privately:
+
+   ```sh
+   docker compose exec -T blankbox python3 -c 'print(open("/data/access-key.txt").read().strip())'
+   ```
+
+4. Open **[http://127.0.0.1:25265](http://127.0.0.1:25265)** on the Docker host, create your local account and complete setup.
+
+To connect another device on your **trusted home network**, change `BLANKBOX_BIND_ADDRESS=0.0.0.0` in `.env`, then run `docker compose up --detach --wait --wait-timeout 240`. Open `http://SERVER-IP:25265` using your host's local IP and selected port. This does not automatically set up outside-home access, a friendly name or HTTPS.
+
+Your library persists in `blankbox_blankbox-data`. `docker compose down` keeps it; omit `--volumes` when keeping the library. The [Docker guide](guides/DOCKER.md) covers read-only media mounts, writable backups, your own UID/GID and a dedicated data bind folder. New installations default to `1000:1000`; checked updates keep existing IDs. This fresh-start path does not mount your drives or configure backups automatically.
+
+**Using Portainer?** Follow our [Portainer guide](guides/PORTAINER.md) to deploy the prebuilt image from the Web editor or Git repository. Other Compose managers can use the [Compose file URL](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/deploy/docker-image/compose.yaml), or repository `https://github.com/blankboxcode/blankbox-community`, branch `main`, path `deploy/docker-image/compose.yaml`. There is no build step. Keep existing library settings when moving management to a new tool.
+
+The guide also covers a [direct Compose Git URL](guides/DOCKER.md#compose-urls-and-docker-managers) for a fresh empty library and the existing full ZIP local-build option. [Public image](https://github.com/blankboxcode/blankbox-community/pkgs/container/blankbox-community)
+
 ## Install from a ZIP
 
 ### Linux
 
 Requires a Debian/Ubuntu-class computer with **Python 3.10+ and systemd**.
 
-1. Download and extract the **Linux / Docker ZIP** above.
+1. Download and extract the **Linux installation ZIP** above.
 2. Open the extracted application folder until you see `setup-linux.sh` and `RELEASE.json`. Choose **Open in Terminal** in your file manager.
 3. Run:
 
@@ -68,9 +100,9 @@ Requires a Debian/Ubuntu-class computer with **Python 3.10+ and systemd**.
 
 | Linux access choice | Open Blank Box here |
 | --- | --- |
-| **1 — This computer** | On the server computer: `http://127.0.0.1:25265`. |
-| **2 — Trusted home network by IP** | On the server or another trusted home-network device: `http://SERVER-IP:25265`. |
-| **3 — The same network plus blankbox.local** | The same access as option 2, plus `http://blankbox.local:25265` where discovery works. The IP address still works. |
+| **1: This computer** | On the server computer: `http://127.0.0.1:25265`. |
+| **2: Trusted home network by IP** | On the server or another trusted home-network device: `http://SERVER-IP:25265`. |
+| **3: The same network plus blankbox.local** | The same access as option 2, plus `http://blankbox.local:25265` where discovery works. The IP address still works. |
 
 Replace `SERVER-IP` with the server's local address from its network settings or your router's device list. Use your chosen port in every address. Option 3 needs optional Avahi discovery packages **before** running setup; see the [Linux guide](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.10/guides/LINUX.md).
 
@@ -98,36 +130,6 @@ None of the three access choices automatically enables outside-home Internet acc
 
 The optional startup task runs **after user sign-in**, not as an always-on Windows service. [Full Windows guide](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.8/guides/WINDOWS.md)
 
-## Quick start with Docker
-
-Requires a **Linux Intel/AMD host with Docker Engine and the Docker Compose plugin**, plus Python 3.10+ for signature verification and checked updates. Docker pulls our public image from GitHub Container Registry; there is no local application build or GitHub sign-in requirement.
-
-1. Download, verify and extract the small **Docker setup ZIP** above. Open a terminal in its folder, where `compose.yaml`, `image.json` and `setup-docker.sh` are visible.
-2. Start a fresh empty library:
-
-   ```sh
-   cp -n blankbox.env.example .env
-   ./setup-docker.sh
-   ```
-
-   If Docker commands need `sudo` on your host, use `sudo ./setup-docker.sh` and `sudo docker compose` for the commands below. The container still runs as a non-root user.
-
-3. Read the recovery key privately:
-
-   ```sh
-   docker compose exec -T blankbox python3 -c 'print(open("/data/access-key.txt").read().strip())'
-   ```
-
-4. Open **[http://127.0.0.1:25265](http://127.0.0.1:25265)** on the Docker host, create your local account and complete setup.
-
-To connect another device on your **trusted home network**, change `BLANKBOX_BIND_ADDRESS=0.0.0.0` in `.env`, then run `docker compose up --detach --wait --wait-timeout 240`. Open `http://SERVER-IP:25265` using your host's local IP and selected port. This does not automatically set up outside-home access, a friendly name or HTTPS.
-
-Your library persists in `blankbox_blankbox-data`. `docker compose down` keeps it; omit `--volumes` when keeping the library. The [Docker guide](guides/DOCKER.md) covers read-only media mounts, writable backups, your own UID/GID and a dedicated data bind folder. New installations default to `1000:1000`; checked updates keep existing IDs. This fresh-start path does not mount your drives or configure backups automatically.
-
-**Using Portainer, Dockhand or another Compose manager?** Use this [Compose file URL](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/deploy/docker-image/compose.yaml), or repository `https://github.com/blankboxcode/blankbox-community`, branch `main`, Compose path `deploy/docker-image/compose.yaml`. The file pulls an exact image digest and has no build step. Each manager's deployment/update behavior still needs checking in your setup. Existing libraries use the update steps below so the user, mounts and paired recovery snapshot are retained.
-
-The guide also covers a [direct Compose Git URL](guides/DOCKER.md#compose-urls-and-docker-managers) for a fresh empty library and the existing full ZIP local-build option. [Public image](https://github.com/blankboxcode/blankbox-community/pkgs/container/blankbox-community)
-
 ## Make it your library
 
 Start with a shelf, a folder or a connected catalog, then bring the rest of your collection together at your own pace.
@@ -151,7 +153,7 @@ Learn how to manage [packaging, artwork and digital copies](guides/COLLECTOR-DET
 
 ## Update an existing installation
 
-Create a complete recovery point first. For native Linux, download the **Linux / Docker installation ZIP**; for Docker, download the small **Docker setup ZIP**. Extract into a new folder and verify it with your previously trusted verifier. Keep the same library location and existing settings.
+Create a complete recovery point first. For native Linux, download the **Linux installation ZIP**; for Docker, download the small **Docker setup ZIP**. Extract into a new folder and verify it with your previously trusted verifier. Keep the same library location and existing settings.
 
 **Native Linux:** open a terminal in the new extracted folder and run:
 
@@ -162,7 +164,7 @@ sudo ./install-linux.sh
 
 This keeps your account, library, port, access mode, sources and backup configuration.
 
-**Docker:** keep the current container running, then copy your existing `.env`, Compose overrides and referenced secret files into the new Docker setup folder. Keep the same project name, UID/GID, port and volume or bind folder, then run:
+**Docker:** use the [short image migration guide](guides/DOCKER-MIGRATION.md) for the full transition. Keep the current container running, then copy your existing `.env`, Compose overrides and referenced secret files into the new Docker setup folder. Keep the same project name, UID/GID, port and volume or bind folder, then run:
 
 ```sh
 ./upgrade-docker.sh

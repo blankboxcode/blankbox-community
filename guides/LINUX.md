@@ -12,9 +12,9 @@ The Linux setup wizard offers three choices for where you will open Blank Box:
 
 | Choice | Who can connect directly | Address to open |
 | --- | --- | --- |
-| **1 — On this computer** | A browser on the Linux computer running Blank Box. | `http://127.0.0.1:25265` on that computer. |
-| **2 — On my trusted home network** | This computer and other devices on your trusted home network. | `http://SERVER-IP:25265` on another device. |
-| **3 — Home network plus blankbox.local** | The same devices as option 2, with an optional friendly name. | `http://blankbox.local:25265`, or the same server-IP address as option 2. |
+| **1: On this computer** | A browser on the Linux computer running Blank Box. | `http://127.0.0.1:25265` on that computer. |
+| **2: On my trusted home network** | This computer and other devices on your trusted home network. | `http://SERVER-IP:25265` on another device. |
+| **3: Home network plus blankbox.local** | The same devices as option 2, with an optional friendly name. | `http://blankbox.local:25265`, or the same server-IP address as option 2. |
 
 Choose 1 if you will use this computer directly. Choose 2 to use a phone, tablet or another computer at home. Choose 3 if you also want to try the friendly name. Option 3 does not provide a different kind of network access.
 
@@ -61,7 +61,7 @@ The installer prints the recovery-key path. Use this key to claim the first owne
 sudo cat /var/lib/blankbox/access-key.txt
 ```
 
-Treat the recovery key like a password. Normal sign-in uses the owner username and password, not this key.
+Treat the recovery key like a password. Use your username and password for normal sign-in. Keep this key for account recovery.
 
 ## What the installer creates
 
