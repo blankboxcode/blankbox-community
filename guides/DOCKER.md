@@ -2,6 +2,8 @@
 
 We provide this path for a Linux host with Docker Engine, the Docker Compose plugin and Python 3.10+ for signature verification. We build the image locally from the verified release package; we do not pull a Blank Box image from a public registry.
 
+Run `docker info` to check access to Docker before installing or updating. If it reports permission denied but `sudo docker info` works, use `sudo` for the Docker commands in this guide and run updates with `sudo ./upgrade-docker.sh`. Blank Box still runs inside its container with the configured non-root UID/GID. Keep your Compose project name and other settings in the installation's `.env`; `sudo` may omit settings exported only in your shell. You do not need to change library ownership or user IDs to fix host Docker access.
+
 ## 1. Extract and configure
 
 Use the same `blankbox-community-VERSION.zip` supplied for Linux. The Windows ZIP and source ZIP are not the Docker installation package. Extract the Community ZIP and open a terminal inside the resulting folder; `compose.yaml`, `Dockerfile` and `blankbox.env.example` should be visible. This guide creates a fresh, empty library in a persistent Docker volume. For an existing-library restore drill, first read [Recovery](../RECOVERY.md) and use a separate empty data location.

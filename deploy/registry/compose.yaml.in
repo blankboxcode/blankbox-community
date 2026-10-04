@@ -1,0 +1,27 @@
+name: blankbox
+services:
+  blankbox:
+    image: ${BLANKBOX_IMAGE:-@IMAGE@}
+    user: "${BLANKBOX_UID:-1000}:${BLANKBOX_GID:-1000}"
+    restart: unless-stopped
+    init: true
+    ports:
+      - "${BLANKBOX_BIND_ADDRESS:-127.0.0.1}:${BLANKBOX_PUBLISHED_PORT:-25265}:25265"
+    environment:
+      BLANKBOX_DATA: /data
+      BLANKBOX_HOST: 0.0.0.0
+      BLANKBOX_PORT: "25265"
+      BLANKBOX_OIDC: ${BLANKBOX_OIDC:-}
+    volumes:
+      - blankbox-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    stop_grace_period: 30s
+volumes:
+  blankbox-data:

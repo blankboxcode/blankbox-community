@@ -7,6 +7,10 @@ cd "${package_dir}"
 [[ -f VERSION ]] || { echo "VERSION is missing from this release package." >&2; exit 66; }
 command -v docker >/dev/null || { echo "Docker with the Compose plugin is required." >&2; exit 69; }
 docker compose version >/dev/null
+if ! docker info >/dev/null; then
+  echo "Cannot access Docker. If Docker commands on this host require sudo, run sudo ./upgrade-docker.sh from this folder. Keep your project and other Compose settings in .env when using sudo." >&2
+  exit 77
+fi
 python3 release_files.py . --allow-configuration
 
 release_hash="$(sha256sum MANIFEST.sha256 | awk '{print substr($1,1,12)}')"
@@ -17,7 +21,10 @@ timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 previous_image_tag="${BLANKBOX_PREVIOUS_IMAGE:-blankbox-community:previous-${timestamp}-${release_hash}}"
 configured_image="$(docker compose config --format json | python3 -c 'import json,sys; print(json.load(sys.stdin)["services"]["blankbox"]["image"])')"
 [[ "${configured_image}" != *@* ]] || { echo "Use a local image tag for managed upgrades, not a registry digest." >&2; exit 65; }
-container="$(docker compose ps --all -q blankbox 2>/dev/null || true)"
+if ! container="$(docker compose ps --all -q blankbox)"; then
+  echo "Could not read the existing Blank Box container. Check the Docker error above; no update was activated." >&2
+  exit 69
+fi
 [[ -n "${container}" ]] || {
   echo "No existing Blank Box container was found. For an update, start the current release with its current user and storage settings first. For a new installation, use docker compose up." >&2
   exit 65
@@ -67,6 +74,7 @@ import tempfile
 path=Path('.env')
 if path.is_symlink() or (path.exists() and not path.is_file()):
     raise SystemExit('The local .env must be a regular file; no update was activated.')
+original=path.stat() if path.exists() else Path('.').stat()
 text=path.read_text(encoding='utf-8') if path.exists() else ''
 text=''.join(line for line in text.splitlines(keepends=True)
              if not re.match(r'^\s*(?:export\s+)?BLANKBOX_(?:UID|GID)\s*=',line))
@@ -80,6 +88,8 @@ try:
         file.write(text)
         file.flush()
         os.fsync(file.fileno())
+    if os.geteuid()==0:
+        os.chown(temporary,original.st_uid,original.st_gid)
     os.replace(temporary,path)
 finally:
     if temporary is not None:

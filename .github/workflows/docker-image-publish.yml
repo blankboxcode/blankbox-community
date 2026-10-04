@@ -1,0 +1,56 @@
+name: Publish reviewed Docker image
+on:
+  workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: Successful Build Docker image run ID
+        required: true
+        type: string
+      archive_sha256:
+        description: Image archive SHA-256 printed by that build
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: docker-image-publish
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+      packages: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Check the selected build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_RUN_ID: ${{ inputs.build_run_id }}
+          IMAGE_ARCHIVE_SHA256: ${{ inputs.archive_sha256 }}
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python3 deploy/registry/publish-image.py --check-run
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: blankbox-docker-image
+          path: ${{ runner.temp }}/blankbox-image
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.build_run_id }}
+      - name: Publish the tested image without rebuilding
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_RUN_ID: ${{ inputs.build_run_id }}
+          IMAGE_ARCHIVE_SHA256: ${{ inputs.archive_sha256 }}
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python3 deploy/registry/publish-image.py --artifact "$RUNNER_TEMP/blankbox-image"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: blankbox-docker-publication
+          path: ${{ runner.temp }}/blankbox-image/publication.json
+          if-no-files-found: error
+          retention-days: 30
