@@ -1,5 +1,11 @@
 # Blank Box Community 0.1.0-beta.10
 
+## Docker image delivery
+
+Our public prebuilt image is now available for Linux Intel/AMD. The small [Docker setup ZIP](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/downloads/blankbox-docker-0.1.0-beta.10-1.zip) verifies and pulls the image. The [Docker guide](guides/DOCKER.md) covers a Compose URL for new libraries and managers, existing-library updates, custom UID/GID and bind folders. Updates keep the existing project, user and storage and make a paired recovery snapshot. The application and catalog schema are the same as the installation ZIP below.
+
+## Collection and library update
+
 We added clearer item views, physical entry preferences, collector details and optional identity-provider sign-in:
 
 - One physical-item screen for details, matching and confirmation, with saved format defaults by media type and a preferred title-search source.

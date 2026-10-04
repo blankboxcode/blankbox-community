@@ -176,7 +176,7 @@ For a **new empty library**, a current Compose plugin with Git URL support can l
 docker compose -f 'https://github.com/blankboxcode/blankbox-community.git#main:deploy/docker-image/compose.yaml' up --detach --wait --wait-timeout 240
 ```
 
-Use the same `-f` URL for `ps`, `logs` and `exec` commands when using this route. The default project is `blankbox`, port 25265 is bound to this computer, and the persistent volume is `blankbox_blankbox-data`. The setup ZIP also supplies the signature verifier, update helper and local settings files. For an existing library, use its checked update path instead of the fresh-start command. A manager's image-update button does not create a paired catalog snapshot.
+Compose may show the downloaded settings and ask for confirmation. Review them, then choose **Yes** to continue. Use the same `-f` URL for `ps`, `logs` and `exec` commands when using this route. The default project is `blankbox`, port 25265 is bound to this computer, and the persistent volume is `blankbox_blankbox-data`. The setup ZIP also supplies the signature verifier, update helper and local settings files. For an existing library, use its checked update path instead of the fresh-start command. A manager's image-update button does not create a paired catalog snapshot.
 
 ## Optional local build
 
