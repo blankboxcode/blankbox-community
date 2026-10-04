@@ -158,7 +158,7 @@ docker compose up --detach --wait
 
 Update or switch from a locally built image using a newly extracted Docker setup bundle:
 
-Copy your existing `.env` and any local Compose overrides into the newly extracted folder; keep the same project name, image setting, user and volume or bind folder. Preserve referenced secret files. If any bind path is relative, make sure it still points to the same existing folder after moving to the new release directory. Verify the new package with your installed trusted verifier first (see [Updates](../UPDATES.md)).
+Copy your existing `.env` and `compose.override.yaml` or `compose.override.yml` into the newly extracted folder; keep the same project name, image setting, user and volume or bind folder. Keep other custom Compose files and secret/config files outside the signed package folder, preserving their references. If any path is relative, make sure it still points to the same existing file or folder after moving to the new release directory. Verify the new package with your installed trusted verifier first (see [Updates](../UPDATES.md)).
 
 If you also want to change the user or move your data to a host folder, upgrade using your current settings first and check that you can sign in. Then follow the existing-library guidance above for the separate move. Changing those settings before an upgrade can prevent the previous image from reading your library or making its recovery snapshot.
 

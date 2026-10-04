@@ -39,7 +39,7 @@ Use the small Docker image setup ZIP to update or switch from a locally built im
 
 1. Keep the current container available. If you stopped or removed it, start it from its existing release folder with its current settings first.
 2. Verify the new package using a trusted copy of `release_files.py` from your previous package, following [Trust](#trust).
-3. Copy your **existing** `.env` and any local Compose override files into the new extracted folder. Keep the same project name, image setting, numeric user and data volume or bind folder. Preserve other settings and secret files referenced by your configuration. If a bind path is relative, update it to point to the **same existing folder**; moving the release folder must not select a new data location.
+3. Copy your **existing** `.env` and `compose.override.yaml` or `compose.override.yml` into the new extracted folder. Keep the same project name, image setting, numeric user and data volume or bind folder. Keep other custom Compose files and secret/config files outside the signed package folder, preserving their references. If a path is relative, update it to point to the **same existing file or folder**; moving the release folder must not select a new data location.
 4. Open a terminal in the new folder and run:
 
 ```sh
@@ -49,6 +49,8 @@ Use the small Docker image setup ZIP to update or switch from a locally built im
 The helper authenticates the image descriptor, checks the existing project/user/mounts and pulls the exact digest before stopping. It then creates a paired snapshot and checks readiness. Failed activation restores the previous image and snapshot. On success it saves the accepted digest and retained UID/GID in `.env`, including `10001:10001` from older installations. It does not move data or change ownership. New installations use `1000:1000`. If Docker commands need sudo, run `sudo ./upgrade-docker.sh`; host Docker access does not change the container user.
 
 The image updater preserves the incoming `.env` file owner. If an earlier update left it root-owned, correct its intended Linux-user ownership before copying it. Save access settings such as `BLANKBOX_BIND_ADDRESS` and `BLANKBOX_PUBLISHED_PORT` in `.env` so they survive sudo.
+
+If verification reports `Release contains unlisted files.`, the setup folder contains files outside the signed inventory. Only `.env`, `compose.override.yaml` and `compose.override.yml` are allowed additions. Keep other files outside the package folder and preserve any configuration references. Invoking the updater through Bash uses the same verification check.
 
 Sign in at your usual address and check your library. Keep the printed previous image tag and pre-update snapshot. Ordinary `docker compose up` in the accepted setup folder keeps its saved image digest. Changing user IDs or moving storage is a separate operation after the update works. See [Docker](guides/DOCKER.md) for bind mounts and source-folder access.
 

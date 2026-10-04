@@ -164,7 +164,7 @@ sudo ./install-linux.sh
 
 This keeps your account, library, port, access mode, sources and backup configuration.
 
-**Docker:** use the [short image migration guide](guides/DOCKER-MIGRATION.md) for the full transition. Keep the current container running, then copy your existing `.env`, Compose overrides and referenced secret files into the new Docker setup folder. Keep the same project name, UID/GID, port and volume or bind folder, then run:
+**Docker:** use the [short image migration guide](guides/DOCKER-MIGRATION.md) for the full transition. Keep the current container running, then copy your existing `.env` and `compose.override.yaml` or `compose.override.yml` into the new Docker setup folder. Keep other custom configuration and secret files outside that folder, preserving their references. Keep the same project name, UID/GID, port and volume or bind folder, then run:
 
 ```sh
 ./upgrade-docker.sh
