@@ -32,23 +32,23 @@ No Blank Box online account, subscription or connected media server is required.
 
 ## Download
 
-Choose the installation package for your computer. Each ZIP includes the application, setup tools and guides.
+Choose the setup download for your computer. Native installation ZIPs include the application; the small Docker ZIP contains setup tools and pulls our prebuilt image.
 
 | Your installation | Download | Instructions |
 | --- | --- | --- |
 | Linux with systemd | [Linux / Docker ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v0.1.0-beta.10/blankbox-community-0.1.0-beta.10.zip) | [Linux ZIP install](#linux) |
-| Docker on Linux | The same [Linux / Docker ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v0.1.0-beta.10/blankbox-community-0.1.0-beta.10.zip) | [Docker quick start](#quick-start-with-docker) |
+| Docker on Linux (Intel/AMD) | [Docker setup ZIP](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/downloads/blankbox-docker-0.1.0-beta.10-1.zip) | [Docker quick start](#quick-start-with-docker) |
 | Windows 10/11 x64 — **experimental** | [Windows x64 ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v0.1.0-beta.8/blankbox-community-0.1.0-beta.8-windows-x64.zip) | [Windows ZIP install](#windows-experimental) |
 
-**Installation ZIPs include the prebuilt interface: you do not need Node.js, npm or a source build.** Windows includes its own Python runtime; native Linux needs Python 3.10+.
+**The application comes with a prebuilt interface: you do not need Node.js, npm or a source build.** Windows includes its own Python runtime; native Linux needs Python 3.10+.
 
-[Linux / Docker release files and checksums](https://github.com/blankboxcode/blankbox-community/releases/tag/v0.1.0-beta.10) · [Verify your download](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.10/UPDATES.md#trust) · [Platform status](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.10/PLATFORMS.md)
+[Linux / Docker release files and checksums](https://github.com/blankboxcode/blankbox-community/releases/tag/v0.1.0-beta.10) · [Verify your download](UPDATES.md#trust) · [Platform status](PLATFORMS.md)
 
 Verify the package before running setup. A checksum detects changed bytes; first-download publisher trust needs independent confirmation of the signing-key fingerprint. The verification guide explains the trusted verifier.
 
 The Windows download remains beta.8/schema 20 and does not include this Linux/Docker feature update.
 
-These quick starts create a **fresh library**. For an existing library, follow [the update steps below](#update-an-existing-installation), [Updates](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.10/UPDATES.md) or [Recovery](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.10/RECOVERY.md). GitHub's automatic source archives and the source ZIP are developer downloads, not the guided installation package.
+These quick starts create a **fresh library**. For an existing library, follow [the update steps below](#update-an-existing-installation), [Updates](UPDATES.md) or [Recovery](RECOVERY.md). GitHub's automatic source archives and the source ZIP are developer downloads, not the guided installation package.
 
 ## Install from a ZIP
 
@@ -100,35 +100,33 @@ The optional startup task runs **after user sign-in**, not as an always-on Windo
 
 ## Quick start with Docker
 
-Requires a **Linux host with Docker Engine and the Docker Compose plugin**. Host Python 3.10+ is used by the package verification tools. We build the image locally from the installation ZIP; there is no published Blank Box registry image. The first build may download the pinned Python base image.
+Requires a **Linux Intel/AMD host with Docker Engine and the Docker Compose plugin**, plus Python 3.10+ for signature verification and checked updates. Docker pulls our public image from GitHub Container Registry; there is no local application build or GitHub sign-in requirement.
 
-1. Download, verify and extract the **Linux / Docker ZIP** above.
-2. Open a terminal in the extracted application folder. Check that `compose.yaml`, `Dockerfile` and `blankbox.env.example` are visible.
-3. Start a fresh empty library:
+1. Download, verify and extract the small **Docker setup ZIP** above. Open a terminal in its folder, where `compose.yaml`, `image.json` and `setup-docker.sh` are visible.
+2. Start a fresh empty library:
 
    ```sh
    cp -n blankbox.env.example .env
-   docker compose up --detach --build --wait --wait-timeout 240
+   ./setup-docker.sh
    ```
 
-4. Read the first-owner recovery key privately:
+   If Docker commands need `sudo` on your host, use `sudo ./setup-docker.sh` and `sudo docker compose` for the commands below. The container still runs as a non-root user.
+
+3. Read the recovery key privately:
 
    ```sh
    docker compose exec -T blankbox python3 -c 'print(open("/data/access-key.txt").read().strip())'
    ```
 
-5. Open **[http://127.0.0.1:25265](http://127.0.0.1:25265)** on the Docker host, claim your owner profile and complete setup.
+4. Open **[http://127.0.0.1:25265](http://127.0.0.1:25265)** on the Docker host, create your local account and complete setup.
 
-To connect another device on your **trusted home network**, change these values in your local `.env`:
+To connect another device on your **trusted home network**, change `BLANKBOX_BIND_ADDRESS=0.0.0.0` in `.env`, then run `docker compose up --detach --wait --wait-timeout 240`. Open `http://SERVER-IP:25265` using your host's local IP and selected port. This does not automatically set up outside-home access, a friendly name or HTTPS.
 
-```dotenv
-BLANKBOX_BIND_ADDRESS=0.0.0.0
-BLANKBOX_PUBLISHED_PORT=25265
-```
+Your library persists in `blankbox_blankbox-data`. `docker compose down` keeps it; omit `--volumes` when keeping the library. The [Docker guide](guides/DOCKER.md) covers read-only media mounts, writable backups, your own UID/GID and a dedicated data bind folder. New installations default to `1000:1000`; checked updates keep existing IDs. This fresh-start path does not mount your drives or configure backups automatically.
 
-Run `docker compose up --detach --wait --wait-timeout 240` to apply the change, then open `http://SERVER-IP:25265` on the other device. Use the host's local IP and your selected port. This does not set up outside-home access, a friendly name or HTTPS.
+**Using Portainer, Dockhand or another Compose manager?** Use this [Compose file URL](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/deploy/docker-image/compose.yaml), or repository `https://github.com/blankboxcode/blankbox-community`, branch `main`, Compose path `deploy/docker-image/compose.yaml`. The file pulls an exact image digest and has no build step. Each manager's deployment/update behavior still needs checking in your setup. Existing libraries use the update steps below so the user, mounts and paired recovery snapshot are retained.
 
-Your library persists in the `blankbox_blankbox-data` named volume. `docker compose down` retains it; omit `--volumes` when keeping the library. Follow the [Docker guide](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.10/guides/DOCKER.md) to add read-only source mounts, a writable backup mount, or your own UID/GID and data bind folder. Our new-install default UID/GID is `1000:1000`; updates retain the existing installation's IDs. This empty-library quick start does not mount your drives or configure backups automatically.
+The guide also covers a [direct Compose Git URL](guides/DOCKER.md#compose-urls-and-docker-managers) for a fresh empty library and the existing full ZIP local-build option. [Public image](https://github.com/blankboxcode/blankbox-community/pkgs/container/blankbox-community)
 
 ## Make it your library
 
@@ -153,7 +151,7 @@ Learn how to manage [packaging, artwork and digital copies](guides/COLLECTOR-DET
 
 ## Update an existing installation
 
-Download and extract the new **Linux / Docker installation ZIP** into a separate folder. Create a complete recovery point first and verify the package with your installed trusted verifier. Keep the same library location and your existing settings.
+Create a complete recovery point first. For native Linux, download the **Linux / Docker installation ZIP**; for Docker, download the small **Docker setup ZIP**. Extract into a new folder and verify it with your previously trusted verifier. Keep the same library location and existing settings.
 
 **Native Linux:** open a terminal in the new extracted folder and run:
 
@@ -164,13 +162,13 @@ sudo ./install-linux.sh
 
 This keeps your account, library, port, access mode, sources and backup configuration.
 
-**Docker:** copy your existing `.env` and any local Compose overrides into the new folder. Keep the same project name, image setting, UID/GID and volume or bind folder, then run:
+**Docker:** keep the current container running, then copy your existing `.env`, Compose overrides and referenced secret files into the new Docker setup folder. Keep the same project name, UID/GID, port and volume or bind folder, then run:
 
 ```sh
 ./upgrade-docker.sh
 ```
 
-The helper keeps existing numeric IDs, including `10001:10001`; it does not move data or change ownership. Relative bind paths must still resolve to the same existing folders.
+The helper verifies and pulls the signed image digest before stopping, makes a paired snapshot and checks readiness. It retains existing IDs, including `10001:10001`, and persists the accepted image in `.env`. Use `sudo ./upgrade-docker.sh` if Docker requires sudo. It does not move data or change ownership; relative bind paths must still resolve to the same folders. Failed activation restores the previous image and paired catalog.
 
 Open your usual address, sign in and refresh the browser. Check your items, artwork and sources. This update migrates beta.8/beta.9 catalogs from **schema 20 to 22**. Keep the previous application and paired snapshot; returning to older code requires that earlier catalog state. [Full update and rollback guide](UPDATES.md)
 
@@ -178,7 +176,7 @@ Open your usual address, sign in and refresh the browser. Check your items, artw
 
 Use a separate backup drive and test a restore into a **new empty destination**. Library recovery protects saved records, managed copies and paired offline-pack assets. It **cannot recreate missing linked source-drive originals**; protect those bytes separately. Portable restore excludes account/provider secrets, so reconnect Plex/Jellyfin afterward.
 
-Core and metapacks update independently and optionally. Keep earlier software and paired recovery material for rollback. [Recovery](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.10/RECOVERY.md) · [Updates](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.10/UPDATES.md)
+Core and metapacks update independently and optionally. Keep earlier software and paired recovery material for rollback. [Recovery](RECOVERY.md) · [Updates](UPDATES.md)
 
 ## Feedback and support
 
@@ -205,4 +203,3 @@ python3 box/server.py --data /path/to/new-blankbox-data --port 25265
 The Core has no required third-party Python packages. To include the distributed starter packs in a source build, copy the signed `bundled-metadata` directory from the matching installation package into `box/` before first start.
 
 </details>
-

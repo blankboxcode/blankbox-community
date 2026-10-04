@@ -12,7 +12,7 @@ cp -n blankbox.env.example .env
 ./setup-docker.sh
 ```
 
-If you already have a trusted Blank Box package, verify this new folder with that package's `release_files.py` and `release-trust.json` before running any new scripts. See [Updates](../../UPDATES.md#trust). The bundle includes the public verifier and key; it does not establish first-download trust by itself.
+If you already have a trusted Blank Box package, verify this new folder with that package's `release_files.py` and `release-trust.json` before running any new scripts. See [Updates](UPDATES.md#trust). The bundle includes the public verifier and key; it does not establish first-download trust by itself.
 
 If `docker info` reports permission denied but `sudo docker info` works, run `sudo ./setup-docker.sh` and use `sudo` for the Docker commands below. For updates use `sudo ./upgrade-docker.sh`. This grants access to the host's Docker service; Blank Box still runs in its container as a non-root user. Keep your Compose settings in `.env`, since `sudo` can omit shell variables.
 

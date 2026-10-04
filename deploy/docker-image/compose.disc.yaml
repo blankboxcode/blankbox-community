@@ -1,0 +1,9 @@
+# Opt in to one host optical drive without exposing the entire /dev tree.
+# Set BLANKBOX_OPTICAL_DEVICE to an existing /dev/srN on the Linux host and
+# BLANKBOX_OPTICAL_GID to that device's group ID before using this override.
+services:
+  blankbox:
+    devices:
+      - "${BLANKBOX_OPTICAL_DEVICE:?Choose an optical device such as /dev/sr0}:/dev/sr0:r"
+    group_add:
+      - "${BLANKBOX_OPTICAL_GID:?Set the optical device group ID}"

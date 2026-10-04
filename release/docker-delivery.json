@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "version": "0.1.0-beta.10",
+  "deliveryRevision": 1,
+  "archive": "blankbox-docker-0.1.0-beta.10-1.zip",
+  "sha256": "b4aa500888d9e013b2d85bc2bb675525cf4ba21e1908e35fb73ba7c0d00a55e1",
+  "bytes": 73711,
+  "image": "ghcr.io/blankboxcode/blankbox-community@sha256:e4de0a60221814e3f06a327bdda791aa13ab42c9bb090a35331285c968406abe",
+  "platform": "linux/amd64",
+  "url": "https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/downloads/blankbox-docker-0.1.0-beta.10-1.zip",
+  "downloads": [
+    {
+      "archive": "blankbox-docker-0.1.0-beta.10-1.zip",
+      "sha256": "b4aa500888d9e013b2d85bc2bb675525cf4ba21e1908e35fb73ba7c0d00a55e1",
+      "bytes": 73711
+    }
+  ]
+}
