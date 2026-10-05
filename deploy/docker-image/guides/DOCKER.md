@@ -2,11 +2,13 @@
 
 We provide a prebuilt image for a Linux Intel/AMD host with Docker Engine and the Docker Compose plugin. Python 3.10+ verifies the small setup bundle and handles checked updates. Docker pulls the application from `ghcr.io/blankboxcode/blankbox-community`; you do not need a local application build.
 
+For an existing locally built image, follow [Switch to the official Docker image](DOCKER-MIGRATION.md). For a new Portainer stack or a later management handover, follow [Portainer](PORTAINER.md).
+
 Run `docker info` to check access to Docker before installing or updating. If it reports permission denied but `sudo docker info` works, use `sudo` for the Docker commands in this guide and run updates with `sudo ./upgrade-docker.sh`. Blank Box still runs inside its container with the configured non-root UID/GID. Keep your Compose project name and other settings in the installation's `.env`; `sudo` may omit settings exported only in your shell. You do not need to change library ownership or user IDs to fix host Docker access.
 
 ## 1. Extract and configure
 
-Download the small [Docker setup ZIP](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/downloads/blankbox-docker-0.1.0-beta.10-1.zip), extract it and open a terminal inside the resulting folder. You should see `compose.yaml`, `image.json`, `setup-docker.sh` and `blankbox.env.example`. This creates a fresh, empty library in a persistent Docker volume. For an existing installation, use the update steps below. For a recovery drill, read [Recovery](../RECOVERY.md) and use a separate empty data location.
+Download the small [Docker setup ZIP](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/downloads/blankbox-docker-1.0.0-1.zip), extract it and open a terminal inside the resulting folder. You should see `compose.yaml`, `image.json`, `setup-docker.sh` and `blankbox.env.example`. This creates a fresh, empty library in a persistent Docker volume. For an existing installation, use the update steps below. For a recovery drill, read [Recovery](../RECOVERY.md) and use a separate empty data location.
 
 Confirm the publisher key fingerprint independently for a first download, then verify the bundle:
 
@@ -156,7 +158,7 @@ docker compose up --detach --wait
 
 Update or switch from a locally built image using a newly extracted Docker setup bundle:
 
-Copy your existing `.env` and any local Compose overrides into the newly extracted folder; keep the same project name, image setting, user and volume or bind folder. Preserve referenced secret files. If any bind path is relative, make sure it still points to the same existing folder after moving to the new release directory. Verify the new package with your installed trusted verifier first (see [Updates](../UPDATES.md)).
+Copy your existing `.env` and `compose.override.yaml` or `compose.override.yml` into the newly extracted folder; keep the same project name, image setting, user and volume or bind folder. Keep other custom Compose files and secret/config files outside the signed package folder, preserving their references. If any path is relative, make sure it still points to the same existing file or folder after moving to the new release directory. Verify the new package with your installed trusted verifier first (see [Updates](../UPDATES.md)).
 
 If you also want to change the user or move your data to a host folder, upgrade using your current settings first and check that you can sign in. Then follow the existing-library guidance above for the separate move. Changing those settings before an upgrade can prevent the previous image from reading your library or making its recovery snapshot.
 
@@ -168,7 +170,7 @@ The helper verifies the bundle and signed image descriptor, checks the existing 
 
 ## Compose URLs and Docker managers
 
-The ready-to-use [Compose file](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/deploy/docker-image/compose.yaml) uses `image:` with an exact digest and has no `build:` entry. In a manager that supports a Git repository, use `https://github.com/blankboxcode/blankbox-community`, branch `main`, and Compose path `deploy/docker-image/compose.yaml`. A manager that accepts a Compose file URL can use the linked raw URL. Add your port, user and mount settings as described above. Portainer/Dockhand-specific deployment and update behavior still needs checking in your own setup.
+The ready-to-use [Compose file](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/deploy/docker-image/compose.yaml) uses `image:` with an exact digest and has no `build:` entry. In a manager that supports a Git repository, use `https://github.com/blankboxcode/blankbox-community`, branch `main`, and Compose path `deploy/docker-image/compose.yaml`. A manager that accepts a Compose file URL can use the linked raw URL. Add your port, user and mount settings as described above. We have checked Portainer Community Edition 2.45.1 Web editor deployment on Linux/amd64; follow [Portainer](PORTAINER.md) for setup and storage-preserving handover. Other managers, repository deployment modes and automatic updates need their own checks. Keep Portainer's saved definition synchronized if the checked CLI updater recreates its container.
 
 For a **new empty library**, a current Compose plugin with Git URL support can load the file directly:
 
@@ -176,11 +178,11 @@ For a **new empty library**, a current Compose plugin with Git URL support can l
 docker compose -f 'https://github.com/blankboxcode/blankbox-community.git#main:deploy/docker-image/compose.yaml' up --detach --wait --wait-timeout 240
 ```
 
-Use the same `-f` URL for `ps`, `logs` and `exec` commands when using this route. The default project is `blankbox`, port 25265 is bound to this computer, and the persistent volume is `blankbox_blankbox-data`. The setup ZIP also supplies the signature verifier, update helper and local settings files. For an existing library, use its checked update path instead of the fresh-start command. A manager's image-update button does not create a paired catalog snapshot.
+Compose may show the downloaded settings and ask for confirmation. Review them, then choose **Yes** to continue. Use the same `-f` URL for `ps`, `logs` and `exec` commands when using this route. The default project is `blankbox`, port 25265 is bound to this computer, and the persistent volume is `blankbox_blankbox-data`. The setup ZIP also supplies the signature verifier, update helper and local settings files. For an existing library, use its checked update path instead of the fresh-start command. A manager's image-update button does not create a paired catalog snapshot.
 
 ## Optional local build
 
-You can still build from the full [Linux / Docker installation ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v0.1.0-beta.10/blankbox-community-0.1.0-beta.10.zip). Extract and verify that package, then open its folder containing `Dockerfile` and `compose.yaml`:
+You can still build from the full [Linux / Docker installation ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v1.0.0/blankbox-community-1.0.0.zip). Extract and verify that package, then open its folder containing `Dockerfile` and `compose.yaml`:
 
 ```sh
 cp -n blankbox.env.example .env

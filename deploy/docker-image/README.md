@@ -36,7 +36,7 @@ Changing the process user does not change folder ownership. For a new custom UID
 
 ## Update or switch from a locally built image
 
-Create a separate complete library recovery point first. Keep the current container running. Extract the new Docker bundle into a new folder and verify it using your previously trusted verifier/key. Copy your existing `.env`, Compose overrides and any referenced secret files into that folder. Keep the same project name, port, UID/GID and every data/media/backup mount. Relative host paths must still point to the same existing folders.
+Create a separate complete library recovery point first. Keep the current container running. Extract the new Docker bundle into a new folder and verify it using your previously trusted verifier/key. Copy your existing `.env` and `compose.override.yaml` or `compose.override.yml` into that folder. Keep other custom Compose files and referenced secret/config files outside the signed folder and preserve their references. Keep the same project name, port, UID/GID and every data/media/backup mount. Relative host paths must still point to the same existing files and folders.
 
 Run from the new folder:
 

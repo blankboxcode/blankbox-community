@@ -4,7 +4,7 @@ We recommend this path for a dedicated Debian or Ubuntu-class Blank Box. It requ
 
 ## 1. Extract the release
 
-Use `blankbox-community-0.1.0-beta.10.zip` for Linux. The Windows ZIP is for Windows; the source ZIP is for building from source. Follow [download verification](../UPDATES.md#trust), then extract the Community ZIP. In your file manager, open the resulting `blankbox-community-0.1.0-beta.10` folder and choose **Open in Terminal**. Check that `setup-linux.sh` and `RELEASE.json` are in that folder before running the next command. For an existing installation, jump to [Upgrade and rollback](#upgrade-and-rollback). For a restore-only test of an existing library, follow [Recovery](../RECOVERY.md).
+Use `blankbox-community-1.0.0.zip` for Linux. The Windows ZIP is for Windows; the source ZIP is for building from source. Follow [download verification](../UPDATES.md#trust), then extract the Community ZIP. In your file manager, open the resulting `blankbox-community-1.0.0` folder and choose **Open in Terminal**. Check that `setup-linux.sh` and `RELEASE.json` are in that folder before running the next command. For an existing installation, jump to [Upgrade and rollback](#upgrade-and-rollback). For a restore-only test of an existing library, follow [Recovery](../RECOVERY.md).
 
 ## 2. Choose access and run setup
 
@@ -12,9 +12,9 @@ The Linux setup wizard offers three choices for where you will open Blank Box:
 
 | Choice | Who can connect directly | Address to open |
 | --- | --- | --- |
-| **1 — On this computer** | A browser on the Linux computer running Blank Box. | `http://127.0.0.1:25265` on that computer. |
-| **2 — On my trusted home network** | This computer and other devices on your trusted home network. | `http://SERVER-IP:25265` on another device. |
-| **3 — Home network plus blankbox.local** | The same devices as option 2, with an optional friendly name. | `http://blankbox.local:25265`, or the same server-IP address as option 2. |
+| **1: On this computer** | A browser on the Linux computer running Blank Box. | `http://127.0.0.1:25265` on that computer. |
+| **2: On my trusted home network** | This computer and other devices on your trusted home network. | `http://SERVER-IP:25265` on another device. |
+| **3: Home network plus blankbox.local** | The same devices as option 2, with an optional friendly name. | `http://blankbox.local:25265`, or the same server-IP address as option 2. |
 
 Choose 1 if you will use this computer directly. Choose 2 to use a phone, tablet or another computer at home. Choose 3 if you also want to try the friendly name. Option 3 does not provide a different kind of network access.
 
@@ -61,7 +61,7 @@ The installer prints the recovery-key path. Use this key to claim the first owne
 sudo cat /var/lib/blankbox/access-key.txt
 ```
 
-Treat the recovery key like a password. Normal sign-in uses the owner username and password, not this key.
+Treat the recovery key like a password. Use your username and password for normal sign-in. Keep this key for account recovery.
 
 ## What the installer creates
 
@@ -119,7 +119,7 @@ sudo ./install-linux.sh
 
 This keeps your existing account, library, port, access mode, sources and backup configuration. The installer snapshots the catalog and paired assets, activates the new release and waits for readiness. Open your usual address, sign in normally and refresh the browser. Keep the previous release and the printed recovery snapshot. If you want to change the listener as well, use `sudo ./setup-linux.sh` and select your intended access mode and port.
 
-Updating from beta.8 or beta.9 migrates schema 20 to 22. Returning to that older application requires its paired pre-update catalog and assets; preserve later edits before a deliberate restore. See [Updates](../UPDATES.md#rollback) for commands and recovery preparation.
+Version 1.0.0 keeps schema 22 for existing installations. Updating an older schema 20 Linux/Docker library migrates it to schema 22. Returning to that older application requires its paired pre-update catalog and assets; preserve later edits before a deliberate restore. See [Updates](../UPDATES.md#rollback) for commands and recovery preparation.
 
 Roll back the most recent compatible upgrade with:
 

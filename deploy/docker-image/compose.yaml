@@ -1,7 +1,7 @@
 name: blankbox
 services:
   blankbox:
-    image: ${BLANKBOX_IMAGE:-ghcr.io/blankboxcode/blankbox-community@sha256:e4de0a60221814e3f06a327bdda791aa13ab42c9bb090a35331285c968406abe}
+    image: ${BLANKBOX_IMAGE:-ghcr.io/blankboxcode/blankbox-community@sha256:f7f4340c5ac029aa12f3d02b3ee6f179d57b89dca87dd8f7a053d1753e6bf660}
     user: "${BLANKBOX_UID:-1000}:${BLANKBOX_GID:-1000}"
     restart: unless-stopped
     init: true

@@ -8,9 +8,9 @@ The Linux setup wizard offers these three choices:
 
 | Choice | Direct access | Address |
 | --- | --- | --- |
-| **1 — On this computer** | Open Blank Box on the computer running it. | `http://127.0.0.1:25265` |
-| **2 — Trusted home network by IP** | Use that computer or another device on your trusted home network. | `http://SERVER-IP:25265` from the other device. |
-| **3 — The same network plus blankbox.local** | The same access as option 2, with a friendly local name where discovery works. | `http://blankbox.local:25265` or the server-IP address. |
+| **1: On this computer** | Open Blank Box on the computer running it. | `http://127.0.0.1:25265` |
+| **2: Trusted home network by IP** | Use that computer or another device on your trusted home network. | `http://SERVER-IP:25265` from the other device. |
+| **3: The same network plus blankbox.local** | The same access as option 2, with a friendly local name where discovery works. | `http://blankbox.local:25265` or the server-IP address. |
 
 Use the actual port selected during setup. `SERVER-IP` means the server's local address from its network settings or your router's device list; for example, `http://192.168.1.50:25265`. On any device, `127.0.0.1` means that device itself. Use it on the server, not on a phone trying to reach the server.
 
@@ -26,6 +26,8 @@ Options 2 and 3 still allow access on the server itself. None automatically enab
 | Private Tailscale HTTPS address | Recommended for access away from the immediate LAN using an authenticated private network. |
 
 The setup wizard does not install or configure a VPN, Tailscale Serve, router forwarding or a private HTTPS proxy. These require separate setup. The friendly `.local` name supplies neither outside-home access nor HTTPS.
+
+Tailscale Serve still reaches Blank Box on your own server. It can forward a private HTTPS address to the app's localhost port; open the Serve address and its selected HTTPS port, which can differ from Blank Box's internal port. The catalog and media stay on your server. Direct Tailscale-IP access instead needs a listener or published port on that interface. See [Tailscale Serve](https://tailscale.com/docs/features/tailscale-serve) for its separate configuration.
 
 `blankbox.local` is multicast DNS, not a public website. It normally works only on the same broadcast network, can be blocked by guest Wi-Fi/VLAN isolation, and can conflict if two devices claim the same name. It does not provide HTTPS by itself.
 

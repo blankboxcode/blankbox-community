@@ -73,7 +73,7 @@ Uninstall removes the matching startup task and retains all application, configu
 
 ## Other devices and friendly names
 
-Windows local-network discovery varies by network and installed discovery services. Use the computer's local name or IP with port `25265`, and allow only private-network access in Windows Firewall. `blankbox.local` is not promised by the Windows beta. See [Local addresses and networking](NETWORKING.md).
+Windows local-network discovery varies by network and installed discovery services. Use the computer's local name or IP with port `25265`, and allow only private-network access in Windows Firewall. `blankbox.local` is not promised by the experimental Windows package. See [Local addresses and networking](NETWORKING.md).
 
 Real Windows-machine acceptance is still required before this path is labeled fully supported.
 

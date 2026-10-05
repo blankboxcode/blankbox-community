@@ -14,7 +14,7 @@ Public pack signatures are checked against the installed Core key before activat
 
 ## Update your installation
 
-Choose the [native Linux installation ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v0.1.0-beta.10/blankbox-community-0.1.0-beta.10.zip) or the small [Docker image setup ZIP](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/downloads/blankbox-docker-0.1.0-beta.10-1.zip), then extract it into a **new folder**. Keep your current installation and data where they are. Source archives are developer downloads.
+Choose the [native Linux installation ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v1.0.0/blankbox-community-1.0.0.zip) or the small [Docker image setup ZIP](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/downloads/blankbox-docker-1.0.0-1.zip), then extract it into a **new folder**. Keep your current installation and data where they are. Source archives are developer downloads.
 
 Before updating, open **Settings → System & About → Update Blank Box software**, create a complete recovery point on your configured separate backup drive, and wait for it to finish. The web app prepares the backup; the platform installer performs the update. A library recovery point cannot recreate missing linked original files, so back up your source drives separately.
 
@@ -33,11 +33,13 @@ You only need `setup-linux.sh` again if you also want to change your access mode
 
 ### Docker on Linux
 
+Use the checked updater for an existing Compose installation. For a stack managed by Portainer, follow [Portainer updates](guides/PORTAINER.md#keep-updates-and-the-stack-definition-together). The [local-image migration guide](guides/DOCKER-MIGRATION.md) covers older installations that build their own image.
+
 Use the small Docker image setup ZIP to update or switch from a locally built image. It uses the same application and catalog schema as the current Linux/Docker release; switching delivery methods does not move your library.
 
 1. Keep the current container available. If you stopped or removed it, start it from its existing release folder with its current settings first.
 2. Verify the new package using a trusted copy of `release_files.py` from your previous package, following [Trust](#trust).
-3. Copy your **existing** `.env` and any local Compose override files into the new extracted folder. Keep the same project name, image setting, numeric user and data volume or bind folder. Preserve other settings and secret files referenced by your configuration. If a bind path is relative, update it to point to the **same existing folder**; moving the release folder must not select a new data location.
+3. Copy your **existing** `.env` and `compose.override.yaml` or `compose.override.yml` into the new extracted folder. Keep the same project name, image setting, numeric user and data volume or bind folder. Keep other custom Compose files and secret/config files outside the signed package folder, preserving their references. If a path is relative, update it to point to the **same existing file or folder**; moving the release folder must not select a new data location.
 4. Open a terminal in the new folder and run:
 
 ```sh
@@ -45,6 +47,10 @@ Use the small Docker image setup ZIP to update or switch from a locally built im
 ```
 
 The helper authenticates the image descriptor, checks the existing project/user/mounts and pulls the exact digest before stopping. It then creates a paired snapshot and checks readiness. Failed activation restores the previous image and snapshot. On success it saves the accepted digest and retained UID/GID in `.env`, including `10001:10001` from older installations. It does not move data or change ownership. New installations use `1000:1000`. If Docker commands need sudo, run `sudo ./upgrade-docker.sh`; host Docker access does not change the container user.
+
+The image updater preserves the incoming `.env` file owner. If an earlier update left it root-owned, correct its intended Linux-user ownership before copying it. Save access settings such as `BLANKBOX_BIND_ADDRESS` and `BLANKBOX_PUBLISHED_PORT` in `.env` so they survive sudo.
+
+If verification reports `Release contains unlisted files.`, the setup folder contains files outside the signed inventory. Only `.env`, `compose.override.yaml` and `compose.override.yml` are allowed additions. Keep other files outside the package folder and preserve any configuration references. Invoking the updater through Bash uses the same verification check.
 
 Sign in at your usual address and check your library. Keep the printed previous image tag and pre-update snapshot. Ordinary `docker compose up` in the accepted setup folder keeps its saved image digest. Changing user IDs or moving storage is a separate operation after the update works. See [Docker](guides/DOCKER.md) for bind mounts and source-folder access.
 
@@ -56,7 +62,7 @@ Our separate Windows download remains the experimental **0.1.0-beta.8** package,
 
 ## Rollback
 
-This release upgrades beta.8/beta.9 Linux/Docker catalogs from schema **20 to 22**. Existing accounts, covers, copy IDs and reference selections are retained. An older Core cannot read schema 22. Returning to it requires both its application files and its **paired pre-update catalog/assets snapshot**. Preserve any later edits before restoring that earlier state.
+Version 1.0.0 keeps catalog schema **22**. Existing schema 22 libraries need no migration. Older schema 20 Linux/Docker libraries migrate to schema 22. Existing accounts, covers, copy IDs and reference selections are retained. An older Core cannot read schema 22. Returning to it requires both its application files and its **paired pre-update catalog/assets snapshot**. Preserve any later edits before restoring that earlier state.
 
 For a compatible native Linux rollback:
 

@@ -8,7 +8,7 @@ Run `docker info` to check access to Docker before installing or updating. If it
 
 ## 1. Extract and configure
 
-Download the small [Docker setup ZIP](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/downloads/blankbox-docker-0.1.0-beta.10-1.zip), extract it and open a terminal inside the resulting folder. You should see `compose.yaml`, `image.json`, `setup-docker.sh` and `blankbox.env.example`. This creates a fresh, empty library in a persistent Docker volume. For an existing installation, use the update steps below. For a recovery drill, read [Recovery](../RECOVERY.md) and use a separate empty data location.
+Download the small [Docker setup ZIP](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/downloads/blankbox-docker-1.0.0-1.zip), extract it and open a terminal inside the resulting folder. You should see `compose.yaml`, `image.json`, `setup-docker.sh` and `blankbox.env.example`. This creates a fresh, empty library in a persistent Docker volume. For an existing installation, use the update steps below. For a recovery drill, read [Recovery](../RECOVERY.md) and use a separate empty data location.
 
 Confirm the publisher key fingerprint independently for a first download, then verify the bundle:
 
@@ -182,7 +182,7 @@ Compose may show the downloaded settings and ask for confirmation. Review them, 
 
 ## Optional local build
 
-You can still build from the full [Linux / Docker installation ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v0.1.0-beta.10/blankbox-community-0.1.0-beta.10.zip). Extract and verify that package, then open its folder containing `Dockerfile` and `compose.yaml`:
+You can still build from the full [Linux / Docker installation ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v1.0.0/blankbox-community-1.0.0.zip). Extract and verify that package, then open its folder containing `Dockerfile` and `compose.yaml`:
 
 ```sh
 cp -n blankbox.env.example .env

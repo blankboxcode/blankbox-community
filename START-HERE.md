@@ -12,7 +12,7 @@ We put this guide in every Community package so you can choose the right downloa
 
 `blankbox-source-VERSION.zip` is for people who want to build the browser client from source. It is not the guided installer or the package to use for a first restore drill. Replace `VERSION` with the release number on the ZIP you received, and keep all files from that one package together.
 
-The current Linux/Docker ZIP is 0.1.0-beta.10 (catalog schema 22) and contains Linux service and Docker setup tools. The separate experimental Windows ZIP remains 0.1.0-beta.8 (schema 20), with its own Python runtime. Follow the guides supplied with your package; the older Windows download does not include this Linux/Docker feature update and cannot open a schema 22 catalog.
+The stable Linux/Docker release is 1.0.0 (catalog schema 22) with a native installation ZIP and a separate small prebuilt-image setup ZIP. The separate experimental Windows ZIP remains 0.1.0-beta.8 (schema 20), with its own Python runtime. Follow the guides supplied with your package; the older Windows download does not include this Linux/Docker feature update and cannot open a schema 22 catalog.
 
 Extract into a new folder. A native installation ZIP contains `RELEASE.json`, `restore.py` and platform setup files. The small Docker bundle contains `image.json`, `compose.yaml` and `setup-docker.sh` instead; it does not contain the application source. Check the publisher signature using an already trusted copy of `release_files.py` or compare the signing-key fingerprint through the publisher's independently verified release announcement before first installation. A checksum detects changed bytes; it does not identify the publisher.
 
@@ -25,7 +25,7 @@ For an **existing installation**, use [Update your installation](UPDATES.md#upda
 - Windows x64: extract the Windows package and open `setup-windows.cmd`. Its private Python runtime is included. See `guides/WINDOWS.md`. Windows remains experimental pending real-machine acceptance.
 - Direct Python from the full Community ZIP: `python3 server.py --data /path/to/new-data --port 25265`.
 
-Already running a locally built Docker image? Follow [the short migration guide](guides/DOCKER-MIGRATION.md). For Portainer, follow [the Portainer guide](guides/PORTAINER.md); the normal stack pulls our prebuilt image.
+For Portainer, follow [the Portainer guide](guides/PORTAINER.md); its stack uses our prebuilt image. Older local-build installations have a separate [migration guide](guides/DOCKER-MIGRATION.md).
 
 ## Choose where to open your Linux installation
 
@@ -41,7 +41,7 @@ Open the address for your chosen access mode. Direct Python and the default Dock
 
 Follow [Your first library](FIRST-STEPS.md) for a short walkthrough from adding one item through restoring a backup. Expect several minutes for the initial reference-database setup on slower storage. If setup fails, keep the extracted package and use the diagnostic command in your platform guide; do not delete an existing data directory to retry.
 
-Add physical items manually, import a reviewed title list, or configure source folders for read-only indexing. A pack match is a reference, not an owned copy. Four optional starter metapacks support offline lookup and collection organization. They install once for a new household; existing choices and removals are retained. See `METAPACKS.md`.
+Add physical items manually, import a UTF-8 CSV/TSV/text collection list up to 100 MB and 100,000 rows, or configure source folders for read-only indexing. List preparation runs in the background; review duplicates and optional offline matches before saving. Movie/TV box sets can hold several searchable titles in one physical package. See [Collection imports and box sets](guides/COLLECTIONS.md). A pack match is a reference, not an owned copy. Four optional starter metapacks support offline lookup and collection organization. They install once for a new household; existing choices and removals are retained. See `METAPACKS.md`.
 
 Folder discovery is off initially. When enabled, it offers stable files for review. Managed copying requires an explicit selection and confirmation. Your originals remain in place. Use `RECOVERY.md` to protect the catalog and any managed copies before relying on this installation.
 

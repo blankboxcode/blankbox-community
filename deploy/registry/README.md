@@ -16,7 +16,7 @@ The approved input is recorded in `current-release.json`. For future application
 
 ## Installation bundle
 
-The public image is available from [GitHub Container Registry](https://github.com/blankboxcode/blankbox-community/pkgs/container/blankbox-community). Download the [signed Docker setup ZIP](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/downloads/blankbox-docker-0.1.0-beta.10-1.zip), or use the [ready-to-use Compose file](../docker-image/compose.yaml) for a fresh library. Follow the [Docker guide](../../guides/DOCKER.md) for setup and updates.
+The public image is available from [GitHub Container Registry](https://github.com/blankboxcode/blankbox-community/pkgs/container/blankbox-community). Download the [signed Docker setup ZIP](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/downloads/blankbox-docker-1.0.0-1.zip), or use the [ready-to-use Compose file](../docker-image/compose.yaml) for a fresh library. Follow the [Docker guide](../../guides/DOCKER.md) for setup and updates.
 
 The Compose file is generated from `compose.yaml.in` with the verified public registry digest. It has no build step. The signed setup bundle includes the image descriptor, verification tools, update helper, settings example and instructions. The versioned ZIP remains unchanged after publication; future image deliveries receive a separate download. `current-release.json` describes the application bytes, and `release/docker-delivery.json` records the current Docker download and digest.
 

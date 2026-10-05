@@ -27,3 +27,9 @@ Open **Settings → Connections → Streaming and digital service links**. Selec
 Built-in title searches remain available with default links. An edited or custom website link opens the address you supplied. These shortcuts do not establish that a particular title is available or owned on that platform. Record your purchases and redemptions on the title itself.
 
 Packaging, release labels, digital records and uploaded images are retained in complete catalog exports and library recovery. Linked source-drive originals remain separate and are not recreated by a catalog restore.
+
+## Box set contents
+
+Use **Make this a box set** beneath a selected movie or TV physical edition. A box set has its own name and shared package details, with linked contents for each included movie or season. Open it from Physical Media or an included title to add contents and edit the shared location, condition, packaging and release label. Edit title facts and playback sources on the individual title. See [Collections and importing](COLLECTIONS.md) for the full workflow.
+
+A blu-ray.com CSV import also keeps comments, recorded prices, disc release dates and site release IDs with the physical copy. These appear in the selected edition's details. Site IDs are separate from barcodes, and disc release dates are separate from film premiere dates.
