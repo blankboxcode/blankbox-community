@@ -1,27 +1,25 @@
-# Blank Box Community 1.0.0
+# Blank Box Community 0.1.0-beta.10
 
-Our first stable Linux/Docker release brings large collection imports and searchable physical box sets to Blank Box.
+## Docker image delivery
 
-## Collection imports
+Our public prebuilt image is now available for Linux Intel/AMD. The small [Docker setup ZIP](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/downloads/blankbox-docker-0.1.0-beta.10-1.zip) verifies and pulls the image. The [Docker guide](guides/DOCKER.md) covers a Compose URL for new libraries and managers, existing-library updates, custom UID/GID and bind folders. Updates keep the existing project, user and storage and make a paired recovery snapshot. The application and catalog schema are the same as the installation ZIP below.
 
-- Import UTF-8 CSV, TSV or text lists up to 100 MB and 100,000 rows.
-- Choose a file, check its columns and prepare rows in the background with progress. A short preview keeps large files manageable.
-- Import blu-ray.com collection exports with recognized disc formats, film years, studio, runtime, purchase price and comments. Site release IDs stay separate from barcodes; disc dates stay separate from film dates.
-- Review exact title/release matches and repeated rows. Loose title suggestions are optional, and different TV seasons stay separate.
-- Fill missing details from installed offline database packs after reviewing a match. Existing entered details stay intact.
-- Review 25 rows per page. Save the displayed rows with their selected database details, or turn database review off to add up to 200 ready rows at once.
-- Resume a completed review after closing the screen or restarting. Uploading and preparing rows do not add titles or change media files.
+## Collection and library update
 
-## Physical box sets
+We added clearer item views, physical entry preferences, collector details and optional identity-provider sign-in:
 
-One owned package can contain several movies or TV seasons. Included titles remain searchable and retain their own details and playback sources. Open its package card to manage contents, location, packaging and release label. A three-film set is one package, one owned copy and three titles; separately owned editions stay separate.
+- One physical-item screen for details, matching and confirmation, with saved format defaults by media type and a preferred title-search source.
+- The search-default and search buttons in physical intake have clear spacing and wrap on smaller screens.
+- Item details open in a popup over your library, with selectable editions, front/back artwork, visible playback and service searches, centered editors, and square, uncropped Music covers.
+- Separate packaging and release-label fields, with suggested and custom values.
+- Multiple saved artwork images for titles and physical editions, including front/back images and a chosen main cover.
+- Digital platform purchase, redemption and code-inclusion records, with optional links and a library badge.
+- Editable service names and links, custom services, and a Movies Anywhere shortcut.
+- Optional OIDC sign-in linked explicitly to your existing account; local password and recovery remain available.
+- UID/GID 1000:1000 for new Docker installations. Updates retain an existing installation’s numeric user, including 10001-owned data.
 
-## Your existing library
+Linux/Docker installations on beta.8 or beta.9 upgrade from catalog schema 20 to 22, preserving existing covers, accounts and collection records. Native Linux updates keep the configured port, sources and backup destination. Docker updates keep the existing project, storage and numeric user. Follow [Updates](UPDATES.md) rather than the fresh-install commands for an existing library.
 
-Version 1.0.0 keeps API 1, catalog schema 22 and metapack reader 5. Current Linux/Docker libraries update without a schema migration. Older schema 20 Linux/Docker libraries migrate to schema 22. Accounts, artwork, saved connections, copies, pack choices and source paths are retained.
+Keep the paired pre-update recovery point and prior software. An older application cannot open the upgraded catalog; use the retained pre-update snapshot for a deliberate rollback and preserve later edits separately.
 
-Use [Updates](UPDATES.md) for an existing library. Keep the previous application/image and a paired recovery point. Linked media remains on its source drive; a catalog backup cannot recreate missing originals.
-
-Docker uses our prebuilt Linux/amd64 image, with no local build required. Native Linux uses the installation ZIP. New Docker libraries default to UID/GID 1000:1000; updates retain the existing user and storage. Windows remains a separate older experimental download and does not include these changes.
-
-The existing item popup, edition artwork, square Music covers, physical entry defaults, digital-platform records, editable service links and optional OIDC remain available. Multi-user accounts and automatic online artwork lookup are not included. Offline database coverage varies by installed pack.
+The separate Windows download remains the experimental beta.8 package with schema 20; it does not include these changes. Check OIDC sign-in and recovery with your actual provider before relying on it.

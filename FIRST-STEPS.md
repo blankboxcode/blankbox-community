@@ -33,5 +33,3 @@ Restore once into a **new empty directory**, start it on a different port, and c
 Restart Blank Box, sign in again and reopen the same item. Try your intended browser, phone, playback formats and storage. Camera scanning needs a browser permission and a secure context, such as localhost or HTTPS. Removing a source or a reference pack must leave your reviewed catalog record intact.
 
 Core and metapacks have separate optional update paths. Neither an update nor a hosted metadata service is required to use your library. See [Updates](UPDATES.md) and [Metapacks](METAPACKS.md).
-
-Collection lists can be UTF-8 CSV, TSV or text files up to 100 MB and 100,000 rows. Import Media shows a short file preview and prepares rows in the background for review. See [collection lists](guides/COLLECTIONS.md#import-a-large-collection-list).

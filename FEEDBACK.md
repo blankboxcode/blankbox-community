@@ -27,4 +27,4 @@ For recovery questions, report the step and outcome rather than the underlying h
 
 We review reports on a best-effort basis. We may ask for a smaller example or missing environment details, link duplicates, or defer an idea while we work on other improvements. There is no guaranteed response time or commitment to implement every suggestion. A closed duplicate or deferred request does not erase the feedback.
 
-Find the installation packages on the [Downloads page](https://github.com/blankboxcode/blankbox-community/releases/latest) and everyday guidance in the [wiki](https://github.com/blankboxcode/blankbox-community/wiki). Windows remains experimental. Use the guides shipped with your installed version for its exact commands.
+Find the installation packages on the [Downloads page](https://github.com/blankboxcode/blankbox-community/releases/tag/v0.1.0-beta.8) and everyday guidance in the [wiki](https://github.com/blankboxcode/blankbox-community/wiki). Windows remains experimental. Use the guides shipped with your installed version for its exact commands.

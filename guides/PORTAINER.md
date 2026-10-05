@@ -56,22 +56,8 @@ Blank Box containers created outside Portainer can appear with limited stack con
 
 ## Keep updates and the stack definition together
 
-For an existing Portainer-managed stack:
+Keep a verified [Docker setup ZIP](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/downloads/blankbox-docker-0.1.0-beta.10-1.zip) for signature verification and checked updates. An image-update button alone does not create a paired catalog/assets snapshot or restore a failed update.
 
-1. Create a complete recovery point in **Settings → System & About** on your configured separate backup drive. Wait for it and any imports or syncs to finish. Keep the current image digest and stack settings.
-2. Download and verify the new [Docker setup ZIP](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/downloads/blankbox-docker-1.0.0-1.zip) with your previously trusted verifier. Its authenticated `image.json` identifies the new image digest.
-3. Pull that exact image on your Docker host before updating. This checks that it is available while the current container keeps running:
-
-   ```sh
-   docker pull ghcr.io/blankboxcode/blankbox-community@sha256:NEW_VERIFIED_DIGEST
-   ```
-
-   Replace the example with the image from the verified descriptor. Use sudo if Docker requires it.
-4. In **Stacks → blankbox → Editor**, replace only the service's `image:` value with that verified image. Keep your existing project, UID/GID, networking, ports, data volume or bind folder, media mounts and configuration.
-5. Choose **Update the stack**. With the image already pulled, another pull is unnecessary. Wait for health, open your usual address, sign in and check items, artwork, copies and sources.
-
-Keep the saved stack definition on that accepted digest. Image changes do not require a new library or a new data volume. For a compatible same-schema rollback, stop the new container and return the same stack to its retained previous image. A schema downgrade or restoration of an earlier catalog needs both the earlier software and its paired catalog/assets snapshot; preserve later changes before restoring. See [Updates](../UPDATES.md#rollback) and [Recovery](../RECOVERY.md).
-
-The checked Compose updater offers automatic stopped snapshots and failed-activation recovery for CLI-managed installations. Running it against a Portainer stack outside Portainer recreates its container through the CLI. Synchronize Portainer's saved image, user and resolved settings afterward, or a later redeployment can undo that update. An image-update button alone does not create a paired snapshot or automatically recover a failed update.
+The [checked updater](DOCKER-MIGRATION.md) must use the same project, user and complete resolved mount/network settings as the running stack. If you run it outside Portainer, it recreates the container through the CLI. Before another Portainer redeployment, synchronize its saved image digest, retained IDs and settings with the accepted `.env`; otherwise its older definition can undo your update. Use [Updates](../UPDATES.md) for verification, compatibility and rollback.
 
 A native Linux installation needs a stopped full-library copy and review of its saved paths before moving into Docker. Do not point this fresh-install stack at native data without that migration.

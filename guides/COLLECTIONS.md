@@ -83,29 +83,3 @@ Camera captures and cover observations stay in this browser session. Camera star
 Open a title to see its artwork, playback choices and **Your editions** in a popup over your library. Select an edition to show its artwork and copies; use **Edit this copy** for its location, condition and edition fields. **Edit title details** changes shared information, **Edit artwork** opens the selected edition’s gallery, and **Choose details source** selects saved Blank Box or connected-service information. Music covers stay square and show the full image. **Close (×)** or **Escape** returns to your library with its filters and scroll position. Editors open above the item; closing an editor returns to the same edition and artwork. Each popup scrolls within the screen.
 
 **Find more → Choose store searches** offers 25 built-in choices across media types plus custom links. Nine sources are initially enabled where applicable; saved choices stay exact after updates. Reference editions appear here separately from your owned copies. Some links open a store page for you to search there; they do not report live prices or availability. **Search your services** stays in item details and opens the configured streaming searches.
-
-## Import a large collection list
-
-Choose a UTF-8 CSV, TSV or text file through **Import Media → Import a title list**. We support files up to **100 MB** and **100,000 rows**, with up to 60 columns and 4,000 characters per cell. Larger row counts need separate files.
-
-The text box shows a short preview of an uploaded file. Blank Box checks the whole file, then prepares its rows in the background after you confirm the columns and types. Progress appears in the import screen. Keep Blank Box running until preparation finishes. Preparation does not add titles; review the results before saving them. A completed review remains available through **Resume review** after closing the screen or restarting. If preparation is interrupted, choose the file again.
-
-Rows appear 25 at a time. With offline database review enabled, save the reviewed rows on that page; with it disabled, you can save up to 200 ready rows at once. Your source CSV and media files stay intact.
-
-## Import a blu-ray.com collection
-
-Export your collection as CSV from blu-ray.com, then open **Import Media → Import a title list** and choose that file. Blank Box recognizes the collection columns and selects physical copies. Review the mapped columns, then continue to **Review & add**.
-
-We keep the site release ID separate from barcodes. The import reads the disc format, film year, studio, runtime, recorded purchase price and comments. The disc release date stays with the physical release. It does not replace the movie's original release date. A trailing `4K` label is removed from the film title when the export's Media column identifies a 4K release; the original title and supplied fields remain recorded.
-
-Matching titles, recorded release IDs and repeated rows need review. Sharing title words alone does not block an import. Different TV seasons stay separate, and optional library matches let you attach a season or edition to an existing title deliberately. Reopening the same staged export resumes it without adding committed rows again.
-
-**Look for missing details in my installed Blank Box Database** shows available offline title matches during review. Choose a match for each row, or use **Select unique title/year matches on this page**, then review those selections before adding. Selected matches fill empty fields and preserve your entered details. With database review enabled, **Add reviewed rows on this page** saves only the rows you can see. Continue through the remaining pages. Turn that option off to add up to 200 ready rows at once without database details. A row without a database match can still be imported. Coverage and artwork depend on the packs you have installed; this is not a live lookup of blu-ray.com.
-
-## Physical box sets
-
-A box set is one owned physical package containing several movies or TV seasons. Add its first title as a physical copy, open that title, select its edition, and choose **Make this a box set**. Name the package, then include titles from My Library or enter missing titles. Choose a season when including part of a TV series. Converting the copy clears its title-only edition match; title metadata, other copies and files remain intact.
-
-The **Box sets** section in Physical Media shows one card per package. Open a card to see and edit its contents, location, packaging and release label. Included titles remain searchable in My Library and keep their own artwork, details and playback sources. Adding a title to a box set creates its ownership link to that package; a separately owned copy of the same title stays separate.
-
-Package totals and title totals count different things. A three-film set with one owned copy is one package, one copy and three included titles. Removing a title from the package keeps its other sources and title details. Keep at least one included title, or remove the final physical copy from its title. Complete catalog exports and library recovery retain the package links.

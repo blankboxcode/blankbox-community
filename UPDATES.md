@@ -14,7 +14,7 @@ Public pack signatures are checked against the installed Core key before activat
 
 ## Update your installation
 
-Choose the [native Linux installation ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v1.0.0/blankbox-community-1.0.0.zip) or the small [Docker image setup ZIP](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/downloads/blankbox-docker-1.0.0-1.zip), then extract it into a **new folder**. Keep your current installation and data where they are. Source archives are developer downloads.
+Choose the [native Linux installation ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v0.1.0-beta.10/blankbox-community-0.1.0-beta.10.zip) or the small [Docker image setup ZIP](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/downloads/blankbox-docker-0.1.0-beta.10-1.zip), then extract it into a **new folder**. Keep your current installation and data where they are. Source archives are developer downloads.
 
 Before updating, open **Settings → System & About → Update Blank Box software**, create a complete recovery point on your configured separate backup drive, and wait for it to finish. The web app prepares the backup; the platform installer performs the update. A library recovery point cannot recreate missing linked original files, so back up your source drives separately.
 
@@ -33,7 +33,7 @@ You only need `setup-linux.sh` again if you also want to change your access mode
 
 ### Docker on Linux
 
-Use the checked updater for an existing Compose installation. For a stack managed by Portainer, follow [Portainer updates](guides/PORTAINER.md#keep-updates-and-the-stack-definition-together). The [local-image migration guide](guides/DOCKER-MIGRATION.md) covers older installations that build their own image.
+For the shortest path from a locally built image, use [Switch to the official Docker image](guides/DOCKER-MIGRATION.md). [Portainer](guides/PORTAINER.md) covers a separate management handover after the image update works.
 
 Use the small Docker image setup ZIP to update or switch from a locally built image. It uses the same application and catalog schema as the current Linux/Docker release; switching delivery methods does not move your library.
 
@@ -62,7 +62,7 @@ Our separate Windows download remains the experimental **0.1.0-beta.8** package,
 
 ## Rollback
 
-Version 1.0.0 keeps catalog schema **22**. Existing schema 22 libraries need no migration. Older schema 20 Linux/Docker libraries migrate to schema 22. Existing accounts, covers, copy IDs and reference selections are retained. An older Core cannot read schema 22. Returning to it requires both its application files and its **paired pre-update catalog/assets snapshot**. Preserve any later edits before restoring that earlier state.
+This release upgrades beta.8/beta.9 Linux/Docker catalogs from schema **20 to 22**. Existing accounts, covers, copy IDs and reference selections are retained. An older Core cannot read schema 22. Returning to it requires both its application files and its **paired pre-update catalog/assets snapshot**. Preserve any later edits before restoring that earlier state.
 
 For a compatible native Linux rollback:
 
