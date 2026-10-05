@@ -23,7 +23,7 @@ export type TvCatalog = { provider: 'jellyfin' | 'plex'; updatedAt?: string; epi
 export type DigitalPlatform = {id:string;platform:string;status:'purchased'|'redeemed'|'code-included';url:string;notes:string;physicalSourceId:string};
 export type ServiceLink = {id:string;name:string;url:string;enabled?:boolean;mark?:string;color?:string;searchUrl?:string};
 export type GalleryArtwork = {id:string;releaseId:string|null;label:string;role:string;url:string;primary:boolean};
-export type MediaSource = { packaging?:string; releaseLabel?:string; id?: string; itemId?: string; versionId?: string; sourceId?: string; type: 'demo' | 'local' | 'physical' | 'catalog' | 'jellyfin' | 'plex' | 'emby' | 'digital'; label: string; path?: string; url?: string; location?: string; providerItemId?: string; metadataIdentifiers?:{namespace:string;value:string}[]; metadataSnapshot?: {catalogDetails?:CatalogDetails;title?:string;kind?:Kind;year?:number;description?:string;poster?:string;genre?:string;artist?:string;releaseDate?:string;duration?:number}; tvCatalog?: TvCatalog; available?:boolean; addedAt?: string; storedPath?: string; sha256?: string; bytes?: number; mime?: string; physicalReleaseId?: string; ownedCopyId?: string; packageContentId?: string; edition?: string; quality?: string; season?: string; episodeNumber?: number; episodeEnd?: number; audioBook?: boolean; playbackProgress?: number; barcode?: string; condition?: string; platform?: string; creator?: string; publisher?: string; volume?: string; issue?: string; region?: string; catalogNumber?: string; certificate?: string; signed?: string; grade?: string; listedPrice?: string; trackNumber?: number; trackTitle?: string; discId?: string; tocFingerprint?: string; artist?: string; extraction?: string; encodingVerified?: boolean };
+export type MediaSource = { packageType?:string;packageTitle?:string;notes?:string;country?:string;releaseDate?:string;importProvider?:string;importId?:string;importedTitle?:string; packaging?:string; releaseLabel?:string; id?: string; itemId?: string; versionId?: string; sourceId?: string; type: 'demo' | 'local' | 'physical' | 'catalog' | 'jellyfin' | 'plex' | 'emby' | 'digital'; label: string; path?: string; url?: string; location?: string; providerItemId?: string; metadataIdentifiers?:{namespace:string;value:string}[]; metadataSnapshot?: {catalogDetails?:CatalogDetails;title?:string;kind?:Kind;year?:number;description?:string;poster?:string;genre?:string;artist?:string;releaseDate?:string;duration?:number}; tvCatalog?: TvCatalog; available?:boolean; addedAt?: string; storedPath?: string; sha256?: string; bytes?: number; mime?: string; physicalReleaseId?: string; ownedCopyId?: string; packageContentId?: string; edition?: string; quality?: string; season?: string; episodeNumber?: number; episodeEnd?: number; audioBook?: boolean; playbackProgress?: number; barcode?: string; condition?: string; platform?: string; creator?: string; publisher?: string; volume?: string; issue?: string; region?: string; catalogNumber?: string; certificate?: string; signed?: string; grade?: string; listedPrice?: string; trackNumber?: number; trackTitle?: string; discId?: string; tocFingerprint?: string; artist?: string; extraction?: string; encodingVerified?: boolean };
 export type MediaItem = { digitalPlatforms?:DigitalPlatform[]; artworkGallery?:GalleryArtwork[]; browseSummary?: boolean; collectionGenres?: string[]; collectionGenreBasis?: string; catalogDetails?:CatalogDetails; customGenres?: string[]; activity?: ItemActivity; id: string; title: string; kind: Kind; year?: number; releaseDate?: string; description?: string; poster?: string; backdrop?: string; duration?: number; genre?: string; versions?: MediaVersion[]; sources: MediaSource[]; bytes?: number; sha256?: string; mime?: string; progress?: number; favorite?: boolean; addedAt: string; sample?: boolean; backup?: 'none' | 'verified'; backupVerifiedAt?: string; credit?: string; metadataMatch?: { type: 'library'; itemId: string; matchedAt: string }; metadataOverrides?: string[]; metadataProvenance?: Record<string,{source:string;updatedAt:string;sourceId?:string}>; metadataPreference?: string; blankboxMetadataSnapshot?: Partial<Pick<MediaItem,'title'|'kind'|'year'|'releaseDate'|'description'|'poster'|'backdrop'|'genre'|'duration'|'artist'|'catalogDetails'>>; artist?: string; trackCount?: number; discImport?: { tocFingerprint: string; format: 'FLAC' | 'WAV'; extraction: string; encodingVerified: boolean; discAccuracyVerified: boolean; importedAt: string } };
 export type SetupMode = '' | 'managed' | 'advanced';
 export type SetupStep = 'welcome' | 'media' | 'connect' | 'protection' | 'access' | 'finish';
@@ -180,23 +180,21 @@ export function mediaReleaseAt(item:MediaItem){return validTimestamp(item.releas
 export function hasDigitalOrConnectedSource(item:MediaItem){return item.sources.some(source=>['local','jellyfin','plex','emby','digital'].includes(source.type));}
 export type CollectionSummary={titles:number;physicalCopies:number;digitalOrConnectedSources:number;physicalFormats:{label:string;count:number}[]};
 export function summarizeCollection(items:MediaItem[]):CollectionSummary{
- const formatCounts=new Map<string,number>();
- let physicalCopies=0,digitalOrConnectedSources=0;
- for(const item of items){
-  if(hasDigitalOrConnectedSource(item))digitalOrConnectedSources++;
-  for(const source of item.sources){
-  if(source.type==='physical'){
-   physicalCopies++;
-   const label=source.label.trim()||'Physical';
-   formatCounts.set(label,(formatCounts.get(label)||0)+1);
-  }
-  }
- }
- return {titles:items.length,physicalCopies,digitalOrConnectedSources,physicalFormats:[...formatCounts].map(([label,count])=>({label,count})).sort((left,right)=>left.label.localeCompare(right.label))};
+ const physical=summarizePhysicalInventory(items);
+ return {titles:items.length,physicalCopies:physical.copies,digitalOrConnectedSources:items.filter(hasDigitalOrConnectedSource).length,physicalFormats:physical.formats};
 }
 export function summarizePhysicalInventory(items:MediaItem[]):PhysicalInventorySummary{
- const physicalItems=items.filter(item=>item.sources.some(source=>source.type==='physical'));
- const collection=summarizeCollection(items);
- return {titles:physicalItems.length,packages:collection.physicalCopies,copies:collection.physicalCopies,includedTitles:collection.physicalCopies,formats:collection.physicalFormats};
+ const titles=new Set<string>(),packages=new Set<string>(),copies=new Set<string>(),included=new Set<string>();
+ const formats=new Map<string,Set<string>>();
+ for(const item of items)for(const [index,source] of item.sources.entries()){
+  if(source.type!=='physical')continue;
+  const copy=source.ownedCopyId||source.id||`${item.id}:${index}`;
+  const release=source.physicalReleaseId||copy;
+  titles.add(item.id);packages.add(release);copies.add(copy);included.add(`${release}:${item.id}`);
+  const label=source.label.trim()||'Physical';
+  if(!formats.has(label))formats.set(label,new Set());
+  formats.get(label)?.add(copy);
+ }
+ return {titles:titles.size,packages:packages.size,copies:copies.size,includedTitles:included.size,formats:[...formats].map(([label,ids])=>({label,count:ids.size})).sort((a,b)=>a.label.localeCompare(b.label))};
 }
 export function detectKind(name:string):Kind { const ext=name.split('.').pop()?.toLowerCase()??''; if(/^(jpg|jpeg|png|webp|heic|heif|avif|tif|tiff|gif)$/.test(ext))return 'photo'; if(/^(mp3|flac|wav|ogg|m4a|aac|opus)$/.test(ext))return 'music'; if(/^(cbz|cbr)$/.test(ext))return 'comic'; if(/^(pdf|epub|mobi|azw|azw3|m4b)$/.test(ext))return 'book'; if(/^(mp4|mkv|avi|mov|webm|m4v|mpg|mpeg|vob)$/.test(ext))return /s\d{1,2}e\d{1,3}/i.test(name)?'tv':/^(IMG|VID|DSC|MOV)[_\d-]/i.test(name.split('/').pop()??'')?'home-video':'movie'; return 'file'; }

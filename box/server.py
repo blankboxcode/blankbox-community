@@ -9,13 +9,13 @@ from contextlib import contextmanager, nullcontext
 from runtime_lock import RuntimeLock
 from file_safety import inside, digest, safe_file, open_linked_file, safe_destination, fingerprint, checked_copy, reject_links
 from refresh_schedule import RefreshSchedule
-from library_browse import LibraryBrowse, VISIBLE_ITEM_CLAUSE, migration_statements
+from library_browse import LibraryBrowse, VISIBLE_ITEM_CLAUSE, migration_statements, normalized as browse_normalized
 from folder_monitor import monitor_source
 from pathlib import Path
 from datetime import datetime, timezone
 from reader import inspect_reader, read_asset, read_chapter
 from disc_import import DiscImportError, STAGING_MARKER, audio_cd_devices, audio_cd_drive_details, cleanup_stale_stages, extract_audio_cd, probe_audio_cd, tool_status
-from catalog_lists import FIELDS as LIST_FIELDS, inspect_document, normalize_row, spreadsheet_safe, suggested_mapping
+from catalog_lists import FIELDS as LIST_FIELDS, MAX_TEXT_BYTES as MAX_LIST_BYTES, document_digest, document_profile, document_rows, inspect_document_summary, normalize_row, row_identity, spreadsheet_safe, suggested_mapping
 from local_clues import GENERIC, path_clues, proposed_filename
 from metadata import SQLiteMetadataRepository, backfill_item, confirm_entity, local_release_id, local_work_id, local_digital_release_id, remove_digital_source_links, sync_digital_releases, sync_owned_releases, sync_source_metadata, valid_season
 from metadata_indexed_pack import MAX_BUNDLE_BYTES, MetadataPackSet, StagedMetadataCatalog
@@ -217,7 +217,7 @@ def plex_details_url(base, machine_id, provider_id):
     return base.rstrip('/')+'/web/index.html#!/server/'+machine_id+'/details?key='+urllib.parse.quote('/library/metadata/'+str(provider_id),safe='')
 
 
-def apply_reference_details(db, item, entity_id):
+def apply_reference_details(db, item, entity_id, *, missing_only=False):
     """Apply a reviewed work's available facts without altering copies or files."""
     entity=db.execute("SELECT * FROM metadata_entities WHERE id=? AND level='work'",(entity_id,)).fetchone()
     if not entity:raise ValueError('Choose a work/title reference for catalog details.')
@@ -248,6 +248,14 @@ def apply_reference_details(db, item, entity_id):
     applied=[]
     limits={'title':250,'description':5000,'genre':500,'artist':250,'releaseDate':80,'poster':2000,'backdrop':2000}
     for field,value in values.items():
+        if missing_only:
+            overrides=set(item.get('metadataOverrides',[]))
+            if field in overrides and (field!='catalogDetails' or not item.get('catalogDetails')):continue
+            if field=='catalogDetails':
+                value={key:entry for key,entry in value.items() if not item.get('catalogDetails',{}).get(key) and 'catalogDetails.'+key not in overrides}
+                if not value:continue
+                value={**item.get('catalogDetails',{}),**value}
+            elif item.get(field) not in (None,'',[],{}):continue
         if field in limits and (not isinstance(value,str) or not value.strip() or len(value)>limits[field]):continue
         if field=='year' and (type(value) is not int or not 1800<=value<=2200):continue
         if field=='catalogDetails':
@@ -261,9 +269,9 @@ def apply_reference_details(db, item, entity_id):
         fact=evidence.get(field,{})
         item.setdefault('metadataProvenance',{})[field]={'source':fact.get('source') or entity['origin'],'entityId':entity_id,'sourceRecordId':fact.get('source_record_id',''),'sourceVersion':fact.get('source_version',''),'license':fact.get('license') or fact.get('rights','unclassified-local'),'updatedAt':now()}
         applied.append(field)
-    cleared=set(applied)|{'catalogDetails.'+key for key in values.get('catalogDetails',{})}
+    cleared=set() if missing_only else set(applied)|{'catalogDetails.'+key for key in values.get('catalogDetails',{})}
     item['metadataOverrides']=sorted(set(item.get('metadataOverrides',[]))-cleared)
-    item['metadataPreference']='blankbox'
+    if not missing_only or not item.get('metadataPreference'):item['metadataPreference']='blankbox'
     local_cover=(item.get('blankboxMetadataSnapshot') or {}).get('poster')
     item['blankboxMetadataSnapshot']=metadata_snapshot(item)
     if isinstance(local_cover,str) and local_cover.startswith('/api/artwork/'):
@@ -736,6 +744,8 @@ def password_matches(password,record):
 
 class Box(ArtworkGallery):
     def __init__(self,data,sources=(),backup=None,web=None,oidc=None):
+        self.cookie_prefix=os.environ.get('BLANKBOX_COOKIE_PREFIX','blank_box')
+        if not re.fullmatch(r'[A-Za-z][A-Za-z0-9_]{0,63}',self.cookie_prefix):raise ValueError('Choose a cookie prefix using letters, digits and underscores.')
         self.oidc=OIDC(oidc) if oidc else None
         self.data=reject_links(data).resolve();self.data.mkdir(mode=0o700,parents=True,exist_ok=True);os.chmod(self.data,0o700)
         if (self.data/'.restore-in-progress.json').exists():
@@ -751,7 +761,7 @@ class Box(ArtworkGallery):
         self.metadata=SQLiteMetadataRepository(self.catalog.connect)
         self.metadata_packs=MetadataPackSet(self.data/'metadata-packs')
         self.bundled_metadata_errors=install_bundled_packs(self.metadata_packs,self.data)
-        self.operation_lock=threading.Lock()
+        self.operation_lock=threading.Lock();self.list_upload_lock=threading.Lock()
         self.inventory_bulk_plan=None
         self.collection_references=CollectionReferences(self.metadata_packs,operation_lock=self.operation_lock)
         self.metadata_pack_catalog=StagedMetadataCatalog(self.data/'metadata-pack-catalog',self.metadata_packs)
@@ -1690,6 +1700,8 @@ class Box(ArtworkGallery):
             if item['kind']=='game' and values['platform'] in ('','__custom__'):raise Problem('Choose a console or platform for this game.')
             if not valid_season(values['season'] or None) or values['season'] and item['kind']!='tv':raise Problem('Choose a valid TV season or leave it unspecified.')
             source=physical[row['sourceId']];original=originals[row['sourceId']]
+            if original.get('packageType')=='box-set' and any(values[key]!=(original.get('label' if key=='format' else key,'') or '') for key in limits):
+                raise Problem('Edit shared package details in the Box set panel. Included titles keep their own details.')
             before=(original.get('label',''),*[original.get(key,'') or '' for key in identity[1:]])
             after=tuple(values[key] for key in identity)
             for key in limits:
@@ -2474,6 +2486,23 @@ class Box(ArtworkGallery):
             ids.extend(row['item_id'] for row in rows)
         if len(ids)<12:ids.extend(candidate_id for candidate_id in self.token_candidate_ids(db,title,kind,year) if candidate_id not in ids)
         return ids[:12]
+    def list_duplicate_ids(self,db,proposed,imported_ids=None):
+        """Only strong matches require review; loose suggestions remain optional."""
+        key=work_title_key(proposed['title'])
+        rows=db.execute('SELECT i.id,i.data FROM item_search s JOIN items i ON i.id=s.item_id WHERE s.title_key=? AND s.kind=? AND (s.year=? OR s.year IS NULL OR ? IS NULL) LIMIT 12',
+                        (key,proposed['kind'],proposed['year'],proposed['year'])).fetchall()
+        ids=[]
+        for row in rows:
+            item=json.loads(row['data'])
+            if proposed.get('physical') and proposed.get('season'):
+                seasons={source.get('season') for source in item.get('sources',[]) if source.get('type')=='physical'}
+                if proposed['season'] not in seasons and None not in seasons and 'complete-series' not in seasons and proposed['season']!='complete-series':continue
+            ids.append(row['id'])
+        if proposed.get('importProvider') and proposed.get('importId'):
+            found=(imported_ids.get((proposed['importProvider'],proposed['importId']),[]) if imported_ids is not None else [row['id'] for row in db.execute("SELECT DISTINCT i.id FROM items i,json_each(i.data,'$.sources') s WHERE json_extract(s.value,'$.importProvider')=? AND json_extract(s.value,'$.importId')=? LIMIT 12",(proposed['importProvider'],proposed['importId']))])
+            for identifier in found:
+                if identifier not in ids:ids.append(identifier)
+        return ids[:12]
     def inventory_review(self,batch_id,relative_path,title=None,kind=None,year=None):
         batch,record=self.inventory_record(batch_id,relative_path)
         title=record['title'] if title is None else title
@@ -2764,66 +2793,253 @@ class Box(ArtworkGallery):
         self.inventory_bulk_plan=None
         return result
     def list_inspect(self,data):
-        try:headers,rows=inspect_document(data.get('content'),data.get('inputType'))
+        try:headers,total,sample=inspect_document_summary(self.list_input(data),data.get('inputType'))
         except ValueError as error:raise Problem(str(error)) from error
-        return {'headers':headers,'mapping':suggested_mapping(headers),'total':len(rows),'sample':[{'rowNumber':number,'values':raw} for number,raw in rows[:3]]}
-    def list_stage(self,data):
-        content=data.get('content');input_type=data.get('inputType');mapping=data.get('mapping')
+        return {'headers':headers,'mapping':suggested_mapping(headers),'profile':document_profile(headers),'total':total,'sample':[{'rowNumber':number,'values':raw} for number,raw in sample]}
+    def list_input(self,data):
+        reference=data.get('contentRef')
+        if reference is None:return data.get('content')
+        if not isinstance(reference,str) or not re.fullmatch(r'[0-9a-f]{32}',reference):raise Problem('Choose a valid uploaded list.')
+        path=reject_links(self.data/'list-inputs'/(reference+'.txt'))
+        if not path.is_file() or path.is_symlink():raise Problem('This upload has expired. Choose your list file again.',404)
+        return path
+    def upload_list(self,stream,size,input_type):
+        if not self.list_upload_lock.acquire(blocking=False):raise Problem("Another list is uploading. Wait for it to finish.",409)
+        try:return self._upload_list(stream,size,input_type)
+        finally:self.list_upload_lock.release()
+    def _upload_list(self,stream,size,input_type):
+        if input_type not in ('lines','csv','tsv'):raise Problem('Choose a pasted list, CSV or TSV file.')
+        if not 0<size<=MAX_LIST_BYTES:raise Problem('Choose a nonempty collection list up to 100 MB.',413)
+        folder=reject_links(self.data/'list-inputs');folder.mkdir(mode=0o700,exist_ok=True);os.chmod(folder,0o700)
+        for previous in folder.glob('*.txt'):
+            if not previous.is_symlink() and previous.stat().st_mtime<time.time()-86400:previous.unlink()
+        if len(list(folder.glob('*.txt')))>=8:raise Problem('Finish reviewing your pending lists before uploading more.',409)
+        if shutil.disk_usage(self.data).free<size*8+64*1024*1024:raise Problem('There is not enough free space to prepare this collection. Free space on the Blank Box data drive, then try again.',507)
+        reference=uuid.uuid4().hex;path=folder/(reference+'.txt')
+        try:
+            fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
+            with os.fdopen(fd,'wb') as target:
+                remaining=size
+                while remaining:
+                    chunk=stream.read(min(CHUNK,remaining))
+                    if not chunk:raise Problem('The upload was interrupted. Choose your list file again.',400)
+                    target.write(chunk);remaining-=len(chunk)
+            result=self.list_inspect({'contentRef':reference,'inputType':input_type})
+            return {**result,'contentRef':reference}
+        except BaseException:
+            path.unlink(missing_ok=True)
+            raise
+    def stage_uploaded_list(self,data):
+        if not data.get("contentRef"):raise Problem("Choose an uploaded collection list.")
+        self.list_input(data)
+        def worker(job):
+            result=self.list_stage(data,job=job)
+            job.update(batchId=result['batch']['id'],message='Your collection is ready to review.')
+        return self.start_job('catalog-list-stage',worker)
+    def physical_packages(self,release_id=None,limit=25,offset=0,q='',kind='',format='',favorites=False,genre='',status=''):
+        if release_id is not None and (not isinstance(release_id,str) or not re.fullmatch(r'[A-Za-z0-9._:-]{1,120}',release_id)):raise Problem('Choose a valid box set.')
+        if type(limit) is not int or not 1<=limit<=50 or type(offset) is not int or not 0<=offset<=1000000 or not isinstance(q,str) or len(q)>250:raise Problem('Choose a valid box set page.')
+        if kind not in ('',*KINDS) or not isinstance(format,str) or len(format)>100 or type(favorites) is not bool or not isinstance(genre,str) or len(genre)>80 or status not in ('','not-started','in-progress','completed'):raise Problem('Choose valid box set filters.')
+        if kind or favorites or genre or status:self.browse.prepare()
+        with self.db() as db:
+            where="WHERE json_extract(data,'$.packageType')='box-set'"+(' AND id=?' if release_id else '')
+            params=(release_id,) if release_id else ()
+            if q:
+                where+=" AND json_extract(data,'$.title') LIKE ?"
+                params+=('%'+q+'%',)
+            if format:
+                where+=" AND EXISTS(SELECT 1 FROM json_each(physical_releases.data,'$.formats') f WHERE f.value=?)";params+=(format,)
+            if kind or favorites or genre or status:
+                where+=" AND EXISTS(SELECT 1 FROM physical_source_links l JOIN owned_copies c ON c.id=l.copy_id JOIN browse_documents d ON d.item_id=l.item_id WHERE c.release_id=physical_releases.id"
+                if kind:where+=' AND d.kind=?';params+=(kind,)
+                if favorites:where+=' AND d.favorite=1'
+                if genre:where+=' AND EXISTS(SELECT 1 FROM browse_genres g WHERE g.item_id=d.item_id AND g.key=?)';params+=(browse_normalized(genre),)
+                if status:where+=" AND json_extract(d.data,'$.activity.status')=?";params+=(status,)
+                where+=')'
+            total=db.execute('SELECT COUNT(*) FROM physical_releases '+where,params).fetchone()[0]
+            releases=db.execute('SELECT id,data FROM physical_releases '+where+" ORDER BY json_extract(data,'$.title'),id LIMIT ? OFFSET ?",(*params,limit,offset)).fetchall()
+            packages=[]
+            for row in releases:
+                release=json.loads(row['data'])
+                copies=[json.loads(copy['data']) for copy in db.execute('SELECT data FROM owned_copies WHERE release_id=? ORDER BY id',(row['id'],))]
+                contents=[]
+                for member in db.execute('SELECT l.source_id,l.copy_id,i.data FROM physical_source_links l JOIN items i ON i.id=l.item_id JOIN owned_copies c ON c.id=l.copy_id WHERE c.release_id=? ORDER BY i.rowid,l.source_id',(row['id'],)):
+                    item=json.loads(member['data']);source=next((source for source in item.get('sources',[]) if source.get('id')==member['source_id']),None)
+                    if source:
+                        contents.append({'itemId':item['id'],'sourceId':source['id'],'copyId':member['copy_id'],'title':item['title'],'kind':item['kind'],
+                                         'year':item.get('year'),'poster':item.get('poster'),'season':source.get('season'),'format':source['label'],'partLabel':source.get('partLabel')})
+                packages.append({'id':row['id'],'title':release['title'],'formats':release.get('formats',[]),'packaging':release.get('packaging',''),
+                                 'releaseLabel':release.get('releaseLabel',''),'notes':release.get('notes',''),'copies':copies,'contents':contents})
+        return {'packages':packages,'total':total,'offset':offset,'limit':limit}
+    def change_physical_package(self,data):
+        """One owned package, with stable links to each included title or season."""
+        operation=data.get('operation')
+        if operation not in ('create','add','remove','edit') or data.get('confirm') is not True:raise Problem('Review and confirm this box set change.')
+        for field in ('itemId','sourceId','releaseId','targetId'):
+            if field in data and (not isinstance(data[field],str) or not re.fullmatch(r'[A-Za-z0-9._:-]{1,120}',data[field])):raise Problem('Choose a valid box set, title or source.')
+        if not self.operation_lock.acquire(blocking=False):raise Problem('Another library operation is running. Wait for it to finish.',409)
+        try:
+            with self.db() as db:
+                db.execute('BEGIN IMMEDIATE')
+                if operation=='create':
+                    row=db.execute('SELECT data FROM items WHERE id=?',(data.get('itemId'),)).fetchone()
+                    if not row:raise Problem('The selected title was removed.',404)
+                    item=json.loads(row['data']);source=next((source for source in item.get('sources',[]) if source.get('id')==data.get('sourceId') and source.get('type')=='physical'),None)
+                    if not source:raise Problem('Choose an existing physical copy.',404)
+                    if item['kind'] not in ('movie','tv'):raise Problem('Box sets currently support movies and TV.')
+                    release_id=source['physicalReleaseId']
+                    count=db.execute('SELECT COUNT(*) FROM owned_copies WHERE release_id=?',(release_id,)).fetchone()[0]
+                    if count!=1:raise Problem('Choose an edition with one owned copy before creating a box set.')
+                    release=json.loads(db.execute('SELECT data FROM physical_releases WHERE id=?',(release_id,)).fetchone()[0])
+                    if release.get('packageType')=='box-set':raise Problem('This copy is already a box set.',409)
+                    title=data.get('title')
+                    if not isinstance(title,str) or not 1<=len(title.strip())<=250:raise Problem('Enter a box set name up to 250 characters.')
+                    release.update(title=title.strip(),packageType='box-set')
+                    source.update(packageTitle=title.strip(),packageType='box-set')
+                    db.execute('UPDATE physical_releases SET data=? WHERE id=?',(json.dumps(release),release_id))
+                    db.execute('UPDATE items SET data=? WHERE id=?',(json.dumps(item),item['id']))
+                    sync_item_search(db,item)
+                else:
+                    release_id=data.get('releaseId')
+                    row=db.execute('SELECT data FROM physical_releases WHERE id=?',(release_id,)).fetchone()
+                    if not row:raise Problem('This box set was removed.',404)
+                    release=json.loads(row['data'])
+                    if release.get('packageType')!='box-set':raise Problem('Choose a box set.')
+                    links=db.execute('SELECT l.source_id,l.copy_id,i.data FROM physical_source_links l JOIN items i ON i.id=l.item_id JOIN owned_copies c ON c.id=l.copy_id WHERE c.release_id=?',(release_id,)).fetchall()
+                    if not links:raise Problem('This box set no longer has an owned copy.',409)
+                    if operation=='add':
+                        seed=json.loads(links[0]['data']);seed_source=next(source for source in seed['sources'] if source['id']==links[0]['source_id'])
+                        if data.get('targetId'):
+                            row=db.execute('SELECT data FROM items WHERE id=?',(data['targetId'],)).fetchone()
+                            if not row:raise Problem('The selected title was removed.',404)
+                            item=json.loads(row['data'])
+                        else:
+                            title=data.get('title');kind=data.get('kind');year=data.get('year')
+                            if not isinstance(title,str) or not 1<=len(title.strip())<=250 or kind not in ('movie','tv') or year is not None and (type(year) is not int or not 1800<=year<=2200):raise Problem('Enter a movie or TV title and a valid optional year.')
+                            item={'id':uuid.uuid4().hex,'title':title.strip(),'kind':kind,'sources':[],'addedAt':now(),'backup':'none','metadataOverrides':[]}
+                            if year is not None:item['year']=year
+                        if item['kind'] not in ('movie','tv') or item['kind'] not in PHYSICAL_FORMATS.get(seed_source['label'],()):raise Problem('Choose a movie or TV title compatible with this package format.')
+                        season=data.get('season') or None
+                        if not valid_season(season) or season and item['kind']!='tv':raise Problem('Choose a valid TV season.')
+                        if any(json.loads(link['data'])['id']==item['id'] and next(source for source in json.loads(link['data'])['sources'] if source['id']==link['source_id']).get('season')==season for link in links):raise Problem('This title and season are already in the box set.',409)
+                        if len(links)>=250:raise Problem('A box set supports up to 250 included titles or seasons.')
+                        ensure_item_model(item)
+                        version={'id':uuid.uuid4().hex,'label':release['title'],'format':seed_source['label'],**({'season':season} if season else {})}
+                        item['versions'].append(version)
+                        source={key:value for key,value in seed_source.items() if key not in ('id','versionId','packageContentId','season','partLabel','listBatchId','listRowNumber','importedTitle','importDetails','duration')}
+                        source.update(id=uuid.uuid4().hex,versionId=version['id'],packageTitle=release['title'],packageType='box-set')
+                        if season:source['season']=season
+                        item['sources'].append(source)
+                        db.execute('INSERT INTO items VALUES(?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data',(item['id'],json.dumps(item)))
+                        sync_physical_ownership(db,item)
+                        db.execute('UPDATE items SET data=? WHERE id=?',(json.dumps(item),item['id']))
+                        sync_item_search(db,item);backfill_item(db,item)
+                    elif operation=='remove':
+                        chosen=next((link for link in links if link['source_id']==data.get('sourceId')),None)
+                        if not chosen:raise Problem('That title is no longer in this box set.',409)
+                        if len(links)<=1:raise Problem('Keep at least one title, or remove the physical copy from the title itself.')
+                        item=json.loads(chosen['data']);item['sources']=[source for source in item['sources'] if source['id']!=chosen['source_id']]
+                        sync_physical_ownership(db,item)
+                        db.execute('UPDATE items SET data=? WHERE id=?',(json.dumps(item),item['id']))
+                        sync_item_search(db,item)
+                    else:
+                        changes=data.get('details')
+                        limits={'title':250,'location':250,'condition':120,'packaging':120,'releaseLabel':120,'notes':4000}
+                        if not isinstance(changes,dict) or set(changes)-set(limits) or any(not isinstance(value,str) or len(value)>limits[key] for key,value in changes.items()):raise Problem('Enter valid box set details.')
+                        if 'title' in changes and not changes['title'].strip():raise Problem('Enter a box set name.')
+                        for key in ('title','packaging','releaseLabel','notes'):
+                            if key in changes:release[key]=changes[key].strip()
+                        db.execute('UPDATE physical_releases SET data=? WHERE id=?',(json.dumps(release),release_id))
+                        for copy in db.execute('SELECT id,data FROM owned_copies WHERE release_id=?',(release_id,)).fetchall():
+                            copy_data=json.loads(copy['data'])
+                            for key in ('location','condition'):
+                                if key in changes:copy_data[key]=changes[key].strip()
+                            db.execute('UPDATE owned_copies SET data=? WHERE id=?',(json.dumps(copy_data),copy['id']))
+                        items={json.loads(link['data'])['id']:json.loads(link['data']) for link in links}
+                        for item in items.values():
+                            for source in item['sources']:
+                                if source.get('physicalReleaseId')!=release_id:continue
+                                source['packageTitle']=release['title']
+                                for key in ('location','condition','packaging','releaseLabel'):
+                                    if key in changes:source[key]=changes[key].strip()
+                            sync_physical_ownership(db,item)
+                            db.execute('UPDATE items SET data=? WHERE id=?',(json.dumps(item),item['id']))
+                            sync_item_search(db,item)
+                # A multi-title package must not inherit one film's edition identity.
+                if operation in ('create','add'):
+                    db.execute("DELETE FROM metadata_links WHERE target_type='physical_release' AND target_id=?",(release_id,))
+                    db.execute("DELETE FROM metadata_entities WHERE id=? AND origin='household-copy' AND NOT EXISTS(SELECT 1 FROM metadata_links WHERE entity_id=?)",(local_release_id(release_id),local_release_id(release_id)))
+            return {'ok':True,**self.physical_packages(release_id)}
+        finally:self.operation_lock.release()
+    def list_stage(self,data,job=None):
+        content=self.list_input(data);input_type=data.get('inputType');mapping=data.get('mapping')
         mode=data.get('mode');default_kind=data.get('defaultKind');default_format=data.get('defaultFormat','')
         source_name=data.get('sourceName') or 'Pasted list'
         if not isinstance(source_name,str) or not 1<=len(source_name.strip())<=120:raise Problem('Choose a list name up to 120 characters.')
         if mode not in ('titles','physical','source'):raise Problem('Choose titles only, physical copies, or a mapped source-type column.')
         if default_kind not in (*KINDS,'auto'):raise Problem('Choose a default media type or automatic review.')
         if default_format and default_format not in PHYSICAL_FORMATS:raise Problem('Choose a known physical format.')
-        try:headers,rows=inspect_document(content,input_type)
+        try:headers,total,_=inspect_document_summary(content,input_type)
         except ValueError as error:raise Problem(str(error)) from error
         if input_type=='lines':mapping={'title':'Title'}
         if not isinstance(mapping,dict) or any(field not in LIST_FIELDS or column not in headers for field,column in mapping.items()) or 'title' not in mapping:
             raise Problem('Map at least the title column to a column in this file.')
         if len(set(mapping.values()))!=len(mapping):raise Problem('Map each column only once.')
         if mode=='source' and 'sourceType' not in mapping:raise Problem('Map the Source Type column for mixed Blank Box exports.')
-        if default_kind=='comic' and mode=='physical' and mapping.get('issue') and input_type in ('csv','tsv'):
-            # Collector exports may use title-only section headers followed by
-            # issue rows. Preserve the series/run heading for matching, but do
-            # not turn it into a physical copy.
-            section='';prepared=[]
+        sectioned=default_kind=='comic' and mode=='physical' and mapping.get('issue') and input_type in ('csv','tsv')
+        def prepared_rows(rows):
+            section=''
             for row_number,raw in rows:
-                issue=str(raw.get(mapping['issue'],'')).strip()
-                title=str(raw.get(mapping['title'],'')).strip()
-                other=[value for column,value in raw.items() if column!=mapping['title'] and str(value).strip()]
-                if not title and not issue:continue  # Footer totals are not collection entries.
-                if title and not issue and not other:
-                    section=title;continue
-                if title and issue and section and re.sub(r'\s*\(\d{4}\)$','',section).casefold()==title.casefold():
-                    raw={**raw,mapping['title']:section}
-                prepared.append((row_number,raw))
-            rows=prepared
-            if not rows:raise Problem('No issue rows were found below the section headings.')
-        identity=json.dumps({'inputType':input_type,'content':content,'mapping':mapping,'mode':mode,'defaultKind':default_kind,'defaultFormat':default_format,'sourceName':source_name.strip()},sort_keys=True,ensure_ascii=False)
-        digest_value=hashlib.sha256(identity.encode('utf-8')).hexdigest()
-        with self.db() as db:
-            previous=db.execute('SELECT id FROM catalog_import_batches WHERE digest=?',(digest_value,)).fetchone()
-            if previous:return self.list_page(previous['id'])
-        if not self.operation_lock.acquire(blocking=False):raise Problem('Another file operation is running. Wait for it to finish.',409)
+                if sectioned:
+                    issue=str(raw.get(mapping['issue'],'')).strip();title=str(raw.get(mapping['title'],'')).strip()
+                    other=[value for column,value in raw.items() if column!=mapping['title'] and str(value).strip()]
+                    if not title and not issue:continue
+                    if title and not issue and not other:section=title;continue
+                    if title and issue and section and re.sub(r'\s*\(\d{4}\)$','',section).casefold()==title.casefold():raw={**raw,mapping['title']:section}
+                yield row_number,raw
+        if sectioned:
+            with document_rows(content,input_type) as (_,rows):total=sum(1 for _ in prepared_rows(rows))
+            if not total:raise Problem('No issue rows were found below the section headings.')
+        profile=document_profile(headers)
+        digest_value=document_digest(content,{'matchingPolicy':2,'inputType':input_type,'mapping':mapping,'mode':mode,'defaultKind':default_kind,'defaultFormat':default_format,'sourceName':source_name.strip()})
+        with self.db() as db:previous=db.execute('SELECT id FROM catalog_import_batches WHERE digest=?',(digest_value,)).fetchone()
+        if previous:
+            if isinstance(content,Path):content.unlink(missing_ok=True)
+            return self.list_page(previous['id'])
+        if job is None and not self.operation_lock.acquire(blocking=False):raise Problem('Another file operation is running. Wait for it to finish.',409)
         try:
-            batch_id=uuid.uuid4().hex
-            seen=set()
+            batch_id=uuid.uuid4().hex;seen=set()
+            if job:
+                job.update(total=total,done=0,message='Preparing collection rows...');self.save_job(job)
             with self.db() as db:
-                db.execute('INSERT INTO catalog_import_batches VALUES(?,?,?,?,?,?,?,?)',(batch_id,digest_value,source_name.strip(),input_type,mode,json.dumps(mapping),now(),len(rows)))
-                for row_number,raw in rows:
-                    proposed=None;error='';status='ready';candidate_ids=[]
-                    try:
-                        proposed=normalize_row(raw,mapping,default_kind,mode,default_format,KINDS,PHYSICAL_FORMATS)
-                        key=(proposed['kind'],work_title_key(proposed['title']),proposed['year'])
-                        duplicate=key in seen;seen.add(key)
-                        candidate_ids=self.list_candidate_ids(db,proposed['title'],proposed['kind'],proposed['year'])
-                        if candidate_ids or duplicate:status='review'
-                    except ValueError as cause:
-                        error=str(cause);status='error'
-                    db.execute('INSERT INTO catalog_import_rows(batch_id,row_number,raw,proposed,status,item_id,error,candidates) VALUES(?,?,?,?,?,?,?,?)',
-                               (batch_id,row_number,json.dumps(raw,ensure_ascii=False),json.dumps(proposed,ensure_ascii=False) if proposed else None,status,None,error,json.dumps(candidate_ids)))
+                db.execute('INSERT INTO catalog_import_batches VALUES(?,?,?,?,?,?,?,?)',(batch_id,digest_value,source_name.strip(),input_type,mode,json.dumps(mapping),now(),total))
+                imported_ids={}
+                if mapping.get('importId'):
+                    for row in db.execute("SELECT i.id,json_extract(s.value,'$.importProvider') provider,json_extract(s.value,'$.importId') release_id FROM items i,json_each(i.data,'$.sources') s WHERE json_extract(s.value,'$.importId') IS NOT NULL"):
+                        imported_ids.setdefault((row['provider'],row['release_id']),[]).append(row['id'])
+                with document_rows(content,input_type) as (_,rows):
+                    for index,(row_number,raw) in enumerate(prepared_rows(rows),1):
+                        proposed=None;error='';status='ready';candidate_ids=[]
+                        try:
+                            proposed=normalize_row(raw,mapping,default_kind,mode,default_format,KINDS,PHYSICAL_FORMATS,profile)
+                            key=row_identity(proposed);duplicate=key in seen;seen.add(key)
+                            strong=self.list_duplicate_ids(db,proposed,imported_ids)
+                            candidate_ids=list(dict.fromkeys([*strong,*self.list_candidate_ids(db,proposed['title'],proposed['kind'],proposed['year'])]))[:12]
+                            if strong or duplicate:status='review'
+                        except ValueError as cause:error=str(cause);status='error'
+                        db.execute('INSERT INTO catalog_import_rows(batch_id,row_number,raw,proposed,status,item_id,error,candidates) VALUES(?,?,?,?,?,?,?,?)',
+                                   (batch_id,row_number,json.dumps(raw,ensure_ascii=False),json.dumps(proposed,ensure_ascii=False) if proposed else None,status,None,error,json.dumps(candidate_ids)))
+                        if job and (index%500==0 or index==total):
+                            job.update(done=index,message=f'Prepared {index:,} of {total:,} collection rows')
+                            # The staging transaction owns the SQLite writer. Publish
+                            # progress in memory; persist the final job after commit.
+                            if self.state_lock.acquire(blocking=False):
+                                try:self.jobs[job['id']]=dict(job)
+                                finally:self.state_lock.release()
+            if isinstance(content,Path):content.unlink(missing_ok=True)
             return self.list_page(batch_id)
-        finally:self.operation_lock.release()
+        finally:
+            if job is None:self.operation_lock.release()
     def list_classify(self,data):
         batch_id=data.get('batchId');row_number=data.get('rowNumber');kind=data.get('kind');default_format=data.get('format','')
         if not isinstance(batch_id,str) or not re.fullmatch(r'[0-9a-f]{32}',batch_id):raise Problem('Choose a staged list.')
@@ -2840,10 +3056,12 @@ class Box(ArtworkGallery):
                 mapping=json.loads(batch['mapping']);raw=json.loads(row['raw']);review_raw={**raw}
                 if mapping.get('kind'):review_raw[mapping['kind']]=kind
                 if default_format and mapping.get('format'):review_raw[mapping['format']]=default_format
-                try:proposed=normalize_row(review_raw,mapping,kind,batch['mode'],default_format,KINDS,PHYSICAL_FORMATS)
+                try:proposed=normalize_row(review_raw,mapping,kind,batch['mode'],default_format,KINDS,PHYSICAL_FORMATS,document_profile(review_raw))
                 except ValueError as cause:raise Problem(str(cause)) from cause
                 candidates=self.list_candidate_ids(db,proposed['title'],proposed['kind'],proposed['year'])
-                status='review' if candidates else 'ready'
+                candidates=list(dict.fromkeys([*self.list_duplicate_ids(db,proposed),*candidates]))[:12]
+                repeated=any(row_identity(json.loads(other['proposed']))==row_identity(proposed) for other in db.execute('SELECT proposed FROM catalog_import_rows WHERE batch_id=? AND row_number<>? AND proposed IS NOT NULL AND status<>?',(batch_id,row_number,'skipped')))
+                status='review' if self.list_duplicate_ids(db,proposed) or repeated else 'ready'
                 db.execute('UPDATE catalog_import_rows SET proposed=?,status=?,error=?,candidates=? WHERE batch_id=? AND row_number=?',
                            (json.dumps(proposed,ensure_ascii=False),status,'',json.dumps(candidates),batch_id,row_number))
             return self.list_page(batch_id)
@@ -2879,6 +3097,11 @@ class Box(ArtworkGallery):
     def list_commit(self,data):
         if data.get('confirm') is not True:raise Problem('Review and confirm these catalog changes first.')
         batch_id=data.get('batchId');choice=data.get('choice');row_number=data.get('rowNumber');target_id=data.get('targetId');metadata_id=data.get('metadataEntityId')
+        metadata_choices=data.get('metadataChoices',{})
+        row_numbers=data.get('rowNumbers')
+        if row_numbers is not None and (choice!='ready' or not isinstance(row_numbers,list) or not 1<=len(row_numbers)<=200 or any(type(number) is not int or number<1 for number in row_numbers) or len(set(row_numbers))!=len(row_numbers)):raise Problem('Choose up to 200 distinct reviewed rows.')
+        if not isinstance(metadata_choices,dict) or len(metadata_choices)>200 or any(not isinstance(key,str) or not key.isdigit() or not isinstance(value,str) or not 1<=len(value)<=120 for key,value in metadata_choices.items()):raise Problem('Choose bounded metadata matches for the displayed rows.')
+        if metadata_choices and choice!='ready':raise Problem('Bulk metadata choices apply to ready rows only.')
         if choice not in ('ready','new','attach','skip'):raise Problem('Choose how this list row should be handled.')
         if not isinstance(batch_id,str) or not re.fullmatch(r'[0-9a-f]{32}',batch_id):raise Problem('Choose a staged list.')
         if choice!='ready' and (not isinstance(row_number,int) or isinstance(row_number,bool) or row_number<1):raise Problem('Choose a list row.')
@@ -2892,6 +3115,9 @@ class Box(ArtworkGallery):
                 if not batch:raise Problem('This staged list was not found.',404)
                 selected=(db.execute("SELECT * FROM catalog_import_rows WHERE batch_id=? AND status='ready' ORDER BY row_number LIMIT 200",(batch_id,)).fetchall()
                           if choice=='ready' else db.execute('SELECT * FROM catalog_import_rows WHERE batch_id=? AND row_number=?',(batch_id,row_number)).fetchall())
+                if row_numbers is not None:
+                    marks=','.join('?' for _ in row_numbers)
+                    selected=db.execute("SELECT * FROM catalog_import_rows WHERE batch_id=? AND status='ready' AND row_number IN ("+marks+") ORDER BY row_number",(batch_id,*row_numbers)).fetchall()
                 if not selected and choice!='ready':raise Problem('That list row was not found.',404)
                 for row in selected:
                     if row['status'] in ('committed','skipped'):continue
@@ -2900,8 +3126,9 @@ class Box(ArtworkGallery):
                     if choice=='skip':
                         db.execute("UPDATE catalog_import_rows SET status='skipped' WHERE batch_id=? AND row_number=?",(batch_id,row['row_number']));skipped+=1;continue
                     proposed=json.loads(row['proposed']);key=work_title_key(proposed['title'])
-                    current=self.list_candidate_ids(db,proposed['title'],proposed['kind'],proposed['year'])
-                    if choice=='ready' and current:
+                    strong=self.list_duplicate_ids(db,proposed)
+                    current=list(dict.fromkeys([*strong,*self.list_candidate_ids(db,proposed['title'],proposed['kind'],proposed['year'])]))[:12]
+                    if choice=='ready' and strong:
                         db.execute("UPDATE catalog_import_rows SET status='review',candidates=? WHERE batch_id=? AND row_number=?",(json.dumps(current),batch_id,row['row_number']));needs_review+=1;continue
                     if choice=='attach':
                         if target_id not in current:raise Problem('That item is no longer a matching title. Review the row again.',409)
@@ -2914,13 +3141,14 @@ class Box(ArtworkGallery):
                         if proposed['year']:
                             item['year']=proposed['year']
                         if proposed.get('creator') and proposed['kind']=='music':item['artist']=proposed['creator']
+                        if proposed.get('duration'):item['duration']=proposed['duration']
                         if proposed.get('edition'):item['versions']=[{'id':uuid.uuid4().hex,'label':proposed['edition']}]
                         ensure_item_model(item)
                     if proposed['physical']:
                         for index in range(proposed['quantity']):
                             source={'id':ownership_id('list-physical',batch_id,row['row_number'],index),'versionId':item['versions'][0]['id'],
                                     'type':'physical','label':proposed['format'],'addedAt':now(),'listBatchId':batch_id,'listRowNumber':row['row_number']}
-                            for field in ('edition','barcode','location','platform','creator','publisher','condition','volume','issue','region','catalogNumber','certificate','signed','grade','listedPrice'):
+                            for field in ('edition','barcode','location','platform','creator','publisher','condition','volume','issue','region','catalogNumber','certificate','signed','grade','listedPrice','season','notes','releaseDate','country','importProvider','importId','importedTitle','importDetails'):
                                 if proposed.get(field):source[field]=proposed[field]
                             item['sources'].append(source)
                     else:
@@ -2932,11 +3160,12 @@ class Box(ArtworkGallery):
                     sync_item_search(db,item)
                     backfill_item(db,item)
                     sync_owned_releases(db,item)
-                    if metadata_id:
+                    chosen_metadata=metadata_id or metadata_choices.get(str(row['row_number']))
+                    if chosen_metadata:
                         try:
-                            local_id=self.metadata_packs.materialize(db,metadata_id) if metadata_id.startswith('pack:') else metadata_id
+                            local_id=self.metadata_packs.materialize(db,chosen_metadata) if chosen_metadata.startswith('pack:') else chosen_metadata
                             confirm_entity(db,'item',item['id'],local_id)
-                            apply_reference_details(db,item,local_id)
+                            apply_reference_details(db,item,local_id,missing_only=True)
                         except (ValueError,OSError) as error:raise Problem(str(error),409) from error
                     db.execute("UPDATE catalog_import_rows SET status='committed',item_id=? WHERE batch_id=? AND row_number=?",(item['id'],batch_id,row['row_number']))
                     committed+=1
@@ -3831,7 +4060,10 @@ class Box(ArtworkGallery):
         if action=='auto-discovery':return self.auto_import()
         if action=='auto-copy-scan':return self.auto_copy_scan(data.get('sourceId'))
         if action=='list-inspect':return self.list_inspect(data)
+        if action=='physical-packages':return self.physical_packages(data.get('releaseId'),data.get('limit',25),data.get('offset',0),data.get('q',''),data.get('kind',''),data.get('format',''),data.get('favorites',False),data.get('genre',''),data.get('status',''))
+        if action=='physical-package-change':return self.change_physical_package(data)
         if action=='list-stage':return self.list_stage(data)
+        if action=='list-stage-upload':return self.stage_uploaded_list(data)
         if action=='list-classify':return self.list_classify(data)
         if action=='list-commit':return self.list_commit(data)
         if action=='inventory':return self.index_source(data.get('sourceId'),data.get('resumeId'))
@@ -4179,14 +4411,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return self.session_profile_id() is not None
     def session_profile_id(self):
         try:
-            cookies=http.cookies.SimpleCookie(self.headers.get('Cookie',''));sid=cookies.get('blank_box_session');value=sid.value if sid else ''
+            cookies=http.cookies.SimpleCookie(self.headers.get('Cookie',''));sid=cookies.get(self.box.cookie_prefix+'_session');value=sid.value if sid else ''
             return self.box.auth_session_profile(value)
         except http.cookies.CookieError:return None
     def create_session(self,profile_id,remember=False):
         sid,_=self.box.create_auth_session(profile_id,remember)
         secure='; Secure' if self.headers.get('X-Forwarded-Proto')=='https' else ''
         lifetime='; Max-Age=7776000' if remember else ''
-        return sid,f'blank_box_session={sid}; HttpOnly; SameSite=Strict; Path=/{lifetime}{secure}'
+        return sid,f'{self.box.cookie_prefix}_session={sid}; HttpOnly; SameSite=Strict; Path=/{lifetime}{secure}'
     def do_HEAD(self):self.do_GET()
     def do_GET(self):
         try:
@@ -4199,7 +4431,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if not self.box.oidc:raise Problem('OIDC is not enabled.',404)
                 query=urllib.parse.parse_qs(parsed.query)
                 if any(len(values)!=1 for values in query.values()) or 'error' in query:raise Problem('Identity sign-in was not completed. Return to Blank Box and sign in locally.')
-                cookies=http.cookies.SimpleCookie(self.headers.get('Cookie',''));binding=cookies.get('blank_box_oidc')
+                cookies=http.cookies.SimpleCookie(self.headers.get('Cookie',''));binding=cookies.get(self.box.cookie_prefix+'_oidc')
                 pending,subject=self.box.oidc.complete(query.get('state',[''])[0],binding.value if binding else '',query.get('code',[''])[0])
                 with self.box.oidc.lock:
                     if pending['generation']!=self.box.oidc.generation:raise Problem('This identity request was cancelled. Sign in locally and try again.',403)
@@ -4215,7 +4447,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                             profile_id=row['profile_id']
                     _,cookie=self.create_session(profile_id,pending['remember'])
                 if self.box.oidc.config['redirectUri'].startswith('https:') and '; Secure' not in cookie:cookie+='; Secure'
-                self.send_response(303);self.send_header('Location','/');self.send_header('Set-Cookie',cookie);self.send_header('Set-Cookie','blank_box_oidc=; HttpOnly; SameSite=Lax; Path=/api/oidc; Max-Age=0');self.send_header('Cache-Control','no-store');self.send_header('Content-Length','0');self.end_headers();return
+                self.send_response(303);self.send_header('Location','/');self.send_header('Set-Cookie',cookie);self.send_header('Set-Cookie',f'{self.box.cookie_prefix}_oidc=; HttpOnly; SameSite=Lax; Path=/api/oidc; Max-Age=0');self.send_header('Cache-Control','no-store');self.send_header('Content-Length','0');self.end_headers();return
             if path.startswith('/api/') or path.startswith('/media/'):
                 if not self.authenticated():return self.json({'error':'Unlock Blank Box to continue.'},401)
             if path=='/api/oidc/status':
@@ -4447,6 +4679,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             origin=self.headers.get('Origin')
             if origin and urllib.parse.urlparse(origin).netloc!=self.headers.get('Host'):raise Problem('Cross-origin requests are not accepted.',403)
             path=urllib.parse.urlparse(self.path).path
+            if path=='/api/catalog/list-upload':
+                if not self.authenticated():raise Problem('Unlock Blank Box to continue.',401)
+                if self.headers.get('Content-Type','').split(';')[0]!='application/octet-stream':raise Problem('Upload a text, CSV or TSV collection list.',415)
+                size=int(self.headers.get('Content-Length','0'))
+                query=urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                return self.json(self.box.upload_list(self.rfile,size,query.get('inputType',[''])[0]))
             if path=='/api/metadata-pack/upload':
                 if not self.authenticated():raise Problem('Unlock Blank Box to continue.',401)
                 if self.headers.get('Content-Type','').split(';')[0]!='application/vnd.blankbox.metadata-pack+zip':raise Problem('Choose a Blank Box metadata pack file.',415)
@@ -4489,7 +4727,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     if not isinstance(remember,bool):raise Problem('Invalid sign-in preference.')
                     url,binding=self.box.oidc.begin(purpose,profile_id,remember)
                 secure='; Secure' if self.box.oidc.config['redirectUri'].startswith('https:') else ''
-                return self.json({'url':url},cookie=f'blank_box_oidc={binding}; HttpOnly; SameSite=Lax; Path=/api/oidc; Max-Age=300{secure}')
+                return self.json({'url':url},cookie=f'{self.box.cookie_prefix}_oidc={binding}; HttpOnly; SameSite=Lax; Path=/api/oidc; Max-Age=300{secure}')
             if path=='/api/oidc/unlink':
                 with self.box.oidc.lock if self.box.oidc else nullcontext():
                     profile_id=self.session_profile_id();profile=self.box.profile(profile_id) if profile_id else None

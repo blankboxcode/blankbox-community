@@ -2,7 +2,7 @@ import type { BlankBoxCapabilities } from './capabilities';
 import type { CatalogDetails, Job, Kind, LibraryState, MediaItem, OwnerProfile, TvCatalog } from './media';
 
 export type LibraryPage = { items:MediaItem[];total:number;offset:number;limit:number;indexStatus:'building'|'ready'|'unavailable';shelfGroups:{location:string;copies:number;entries:{itemId:string;copies:number}[]}[] };
-export type LibraryPageOptions = {excludeSamples?:boolean;q?:string;view?:string;kind?:string;genre?:string;status?:string;sort?:string;favorites?:boolean;facet?:string;shelves?:boolean;collection?:string;offset?:number;limit?:number};
+export type LibraryPageOptions = {standalonePhysical?:boolean;excludeSamples?:boolean;q?:string;view?:string;kind?:string;genre?:string;status?:string;sort?:string;favorites?:boolean;facet?:string;shelves?:boolean;collection?:string;offset?:number;limit?:number};
 export type JobState = { catalogRevision?:string;browseIndexStatus?: 'building'|'ready'|'unavailable'; jobs: Job[]; collectionIndexStatus: 'building' | 'ready' | 'unavailable' };
 
 export type AuthStatus = { hasProfile: boolean; accessKeyAvailable: boolean; oidcEnabled?:boolean; oidcName?:string };

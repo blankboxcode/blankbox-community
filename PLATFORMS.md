@@ -1,6 +1,6 @@
 # Platform status
 
-The current Linux/Docker package is **0.1.0-beta.10**, with catalog schema **22**. Our separate Windows download remains **0.1.0-beta.8**, with schema **20**. The collector, artwork, physical-entry and OIDC changes in this update are available on Linux/Docker; they are not included in the older Windows package.
+The stable Linux/Docker package is **1.0.0**, with catalog schema **22**. Our separate Windows download remains **0.1.0-beta.8**, with schema **20**. The current collection import, box-set, collector, artwork, physical-entry and OIDC features are available on Linux/Docker; they are not included in the older Windows package.
 
 Choose the full Community ZIP for native Linux, the small setup ZIP for a prebuilt Docker image on Linux/amd64, or the Windows x64 offline ZIP for Windows. Each installation ZIP carries setup and update tools for its target platform; the source ZIP is a separate developer artifact. Shared in-app guides may mention other platforms.
 

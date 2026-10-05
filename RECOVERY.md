@@ -18,7 +18,7 @@ Unchanged managed files are reused in the backup after checksum verification; ea
 
 For source-drive photos, home videos and personal files, use **Import → Files on a drive or folder** after a complete index. **Back up all indexed personal files** shows the exact count and total size for confirmation, then verifies copies on the configured backup drive. You can still select 1-100 eligible files per manual batch. Movie, music, book and other linked originals are not copied by this workflow; use an external drive backup if you need their bytes recoverable. Collections, ownership and saved artwork are catalog records and are covered by the catalog snapshot.
 
-Retention is manual in this beta. Check free space and the last successful backup regularly. Keep at least one verified restore point on separate storage and retain the catalog/asset pair needed for rollback. Do not remove active pack files, restore scratch files, or snapshot assets just because they look old. Test restoration before deliberately pruning old backups.
+Backup retention is manual. Check free space and the last successful backup regularly. Keep at least one verified restore point on separate storage and retain the catalog/asset pair needed for rollback. Do not remove active pack files, restore scratch files, or snapshot assets just because they look old. Test restoration before deliberately pruning old backups.
 
 ## Restore to a new location
 
@@ -34,7 +34,7 @@ Use the `blankbox-community-VERSION.zip` matching the recovery catalog's Core ve
 
 ```text
 blankbox/
-  blankbox-community-0.1.0-beta.8/
+  blankbox-community-1.0.0/
     restore.py
     server.py
   backup-extracted/
@@ -61,8 +61,8 @@ Choose the `full-recovery.json` for the complete point you want. Its **containin
 From that same outer folder, restore into a **new** `restored-data` folder. This example assumes the folder names shown above. Replace the quoted snapshot path with the containing folder shown by your `find` output:
 
 ```sh
-python3 "./blankbox-community-0.1.0-beta.8/restore.py" --full "./backup-extracted/blank-box-backup/snapshots/POINT-ID" "./restored-data"
-python3 "./blankbox-community-0.1.0-beta.8/server.py" --data "./restored-data" --port 25266
+python3 "./blankbox-community-1.0.0/restore.py" --full "./backup-extracted/blank-box-backup/snapshots/POINT-ID" "./restored-data"
+python3 "./blankbox-community-1.0.0/server.py" --data "./restored-data" --port 25266
 ```
 
 Wait for the first command to report that it restored and checked the catalog, managed files and packs. If it reports an error, stop and keep both extracted ZIP folders; do not run the second command against a partial restore. Leave the second command running and open `http://127.0.0.1:25266` in a browser **on that test computer**. Blank Box creates a new recovery key at `restored-data/access-key.txt` when Core first starts; read it privately to claim a test owner profile. Stop only this test process with Ctrl+C when done; the `restored-data` folder remains for review. Do not run the normal setup wizard against this restored data folder; the wizard creates a separate fresh installation. Existing populated restore destinations and linked destination paths are rejected. Run the commands as an account that can read the snapshot and shared managed-media backup and write the new destination; on a Linux service installation this is normally the `blankbox` account. Do not make private backups world-readable to work around a permission error.

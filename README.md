@@ -9,62 +9,54 @@
 <p align="center"><strong>Own it. Preserve it. Bring it home.</strong></p>
 
 <p align="center">
-  <a href="#download">Download</a> ·
-  <a href="#quick-start-with-docker">Docker quick start</a> ·
+  <a href="#install-with-docker">Docker</a> ·
   <a href="#install-from-a-zip">ZIP installation</a> ·
-  <a href="#update-an-existing-installation">Update</a> ·
+  <a href="#updates">Updates</a> ·
   <a href="https://github.com/blankboxcode/blankbox-community/wiki">Wiki</a> ·
   <a href="https://github.com/blankboxcode/blankbox-community/issues/new/choose">Feedback &amp; help</a>
 </p>
 
 # Your collection, in one private library
 
-We built Blank Box Community to bring physical collections, files on your own drives and optional Plex/Jellyfin catalogs together. Keep track of what you own, where it lives and how you can enjoy it, with a catalog that runs on your computer and works offline.
+We built Blank Box Community to bring physical collections, files on your own drives and optional Plex/Jellyfin catalogs together. See what you own, where it lives and how to enjoy it, in a library that runs on your computer and works offline.
 
-- **Organize physical media:** record copies, editions, packaging, release labels and locations; save front/back artwork and build collections.
-- **Connect your files:** index mounted drives and link files in place without copying or renaming originals.
-- **Look up titles offline:** four included optional signed metapacks help with reference facts and organization. They contain no media or cover art.
-- **Enjoy compatible media:** play browser-compatible files, read supported EPUB/CBZ documents, or open connected Plex/Jellyfin sources in their own service.
-- **See every way to enjoy a title:** browse editions and artwork, choose playable sources, search your own streaming services, and record digital purchases or redeemed codes.
-- **Keep your library yours:** save corrections, export your catalog and create checked recovery points for records and managed copies.
+- **Catalog your collection:** record discs, books, records and other physical media, with editions, packaging, release labels, locations and front/back artwork.
+- **Import a collection list:** bring in CSV, TSV or text files up to 100 MB and 100,000 rows, including blu-ray.com exports. Review matches and optional offline details before saving.
+- **Organize box sets:** keep one physical package with searchable movies or seasons inside it, alongside separately owned copies.
+- **Connect your files and services:** link files on mounted drives in place, or sync an existing Plex/Jellyfin catalog. Your originals stay where they are.
+- **Find details offline:** optional signed Movies, TV, Books and Music database packs help with titles and reference facts. Coverage varies; these packs contain no media or cover art.
+- **Choose how to enjoy a title:** browse editions and artwork, play compatible files, read supported EPUB/CBZ documents, or open a connected service. Record digital purchases and redeemed codes separately from playback.
+- **Keep your library yours:** save corrections, export your catalog and create recovery points for your records and managed copies.
 
-No Blank Box online account, subscription or connected media server is required. Browser codec and format limits apply; transcoding and protected video-disc copying are not included.
+No Blank Box online account, subscription or connected media server is required. Browser formats and codecs determine what plays directly; Blank Box does not transcode.
 
 ## Download
 
-For Docker, use the small setup ZIP to pull our prebuilt image. For a Linux background service or Windows installation, use the native application ZIP for your computer.
+**Blank Box Community 1.0.0** is the stable release for Linux and Docker. The interface is already built; no Node.js, npm or source build is needed to install it.
 
-| Your installation | Download | Instructions |
+| How you want to run it | Download | Guide |
 | --- | --- | --- |
-| Docker on Linux (Intel/AMD) | [Docker setup ZIP](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/downloads/blankbox-docker-0.1.0-beta.10-1.zip) | [Docker quick start](#quick-start-with-docker) |
-| Linux with systemd | [Linux installation ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v0.1.0-beta.10/blankbox-community-0.1.0-beta.10.zip) | [Linux ZIP install](#linux) |
-| Windows 10/11 x64 (**experimental**) | [Windows x64 ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v0.1.0-beta.8/blankbox-community-0.1.0-beta.8-windows-x64.zip) | [Windows ZIP install](#windows-experimental) |
+| Docker on Linux Intel/AMD | [Small Docker setup ZIP](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/downloads/blankbox-docker-1.0.0-1.zip) | [Docker](guides/DOCKER.md) |
+| Linux background service | [Linux installation ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v1.0.0/blankbox-community-1.0.0.zip) | [Linux](guides/LINUX.md) |
+| Windows 10/11 x64, experimental | [Earlier Windows package](https://github.com/blankboxcode/blankbox-community/releases/download/v0.1.0-beta.8/blankbox-community-0.1.0-beta.8-windows-x64.zip) | [Windows](guides/WINDOWS.md) |
 
-**The application comes with a prebuilt interface: you do not need Node.js, npm or a source build.** Windows includes its own Python runtime; native Linux needs Python 3.10+.
+[Release files and checksums](https://github.com/blankboxcode/blankbox-community/releases/tag/v1.0.0) · [Verify a download](UPDATES.md#trust) · [Platform status](PLATFORMS.md)
 
-[Linux / Docker release files and checksums](https://github.com/blankboxcode/blankbox-community/releases/tag/v0.1.0-beta.10) · [Verify your download](UPDATES.md#trust) · [Platform status](PLATFORMS.md)
+Verify the package before running setup. For your first download, confirm the signing-key fingerprint through an independently trusted Blank Box channel. For updates, use your existing trusted verifier. GitHub's source archives are developer downloads.
 
-Verify the package before running setup. A checksum detects changed bytes; first-download publisher trust needs independent confirmation of the signing-key fingerprint. The verification guide explains the trusted verifier.
+## Install with Docker
 
-The Windows download remains beta.8/schema 20 and does not include this Linux/Docker feature update.
+Requires Docker Engine and the Compose plugin on a Linux Intel/AMD host, plus Python 3.10+ for verification and checked updates. We provide a public image from GitHub Container Registry; no local application build or GitHub sign-in is needed.
 
-These quick starts create a **fresh library**. For an existing library, follow [the update steps below](#update-an-existing-installation), [Updates](UPDATES.md) or [Recovery](RECOVERY.md). GitHub's automatic source archives and the source ZIP are developer downloads, not the guided installation package.
-
-## Quick start with Docker
-
-Already running a locally built Docker image? Use the [short migration guide](guides/DOCKER-MIGRATION.md) to keep your library, user and settings while switching to the official image.
-
-Requires a **Linux Intel/AMD host with Docker Engine and the Docker Compose plugin**, plus Python 3.10+ for signature verification and checked updates. Docker pulls our public image from GitHub Container Registry; there is no local application build or GitHub sign-in requirement.
-
-1. Download, verify and extract the small **Docker setup ZIP** above. Open a terminal in its folder, where `compose.yaml`, `image.json` and `setup-docker.sh` are visible.
-2. Start a fresh empty library:
+1. Download, verify and extract the **Docker setup ZIP**. Open a terminal in its folder.
+2. Start a new library:
 
    ```sh
    cp -n blankbox.env.example .env
    ./setup-docker.sh
    ```
 
-   If Docker commands need `sudo` on your host, use `sudo ./setup-docker.sh` and `sudo docker compose` for the commands below. The container still runs as a non-root user.
+   Use `sudo ./setup-docker.sh` if your host requires sudo for Docker.
 
 3. Read the recovery key privately:
 
@@ -72,126 +64,94 @@ Requires a **Linux Intel/AMD host with Docker Engine and the Docker Compose plug
    docker compose exec -T blankbox python3 -c 'print(open("/data/access-key.txt").read().strip())'
    ```
 
+   Use `sudo docker compose` if needed. Keep this key private for password recovery.
+
 4. Open **[http://127.0.0.1:25265](http://127.0.0.1:25265)** on the Docker host, create your local account and complete setup.
 
-To connect another device on your **trusted home network**, change `BLANKBOX_BIND_ADDRESS=0.0.0.0` in `.env`, then run `docker compose up --detach --wait --wait-timeout 240`. Open `http://SERVER-IP:25265` using your host's local IP and selected port. This does not automatically set up outside-home access, a friendly name or HTTPS.
+For another device on your trusted home network, set `BLANKBOX_BIND_ADDRESS=0.0.0.0` in `.env`, then run `docker compose up -d --wait`. Open `http://SERVER-IP:25265`, using your host's local IP and chosen port. Outside-home access and HTTPS require your own separate setup.
 
-Your library persists in `blankbox_blankbox-data`. `docker compose down` keeps it; omit `--volumes` when keeping the library. The [Docker guide](guides/DOCKER.md) covers read-only media mounts, writable backups, your own UID/GID and a dedicated data bind folder. New installations default to `1000:1000`; checked updates keep existing IDs. This fresh-start path does not mount your drives or configure backups automatically.
+Your library stays in the persistent `blankbox_blankbox-data` volume. Keep it when updating or recreating containers. The [Docker guide](guides/DOCKER.md) covers media mounts, backups, custom UID/GID and bind folders.
 
-**Using Portainer?** Follow our [Portainer guide](guides/PORTAINER.md) to deploy the prebuilt image from the Web editor or Git repository. Other Compose managers can use the [Compose file URL](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/deploy/docker-image/compose.yaml), or repository `https://github.com/blankboxcode/blankbox-community`, branch `main`, path `deploy/docker-image/compose.yaml`. There is no build step. Keep existing library settings when moving management to a new tool.
-
-The guide also covers a [direct Compose Git URL](guides/DOCKER.md#compose-urls-and-docker-managers) for a fresh empty library and the existing full ZIP local-build option. [Public image](https://github.com/blankboxcode/blankbox-community/pkgs/container/blankbox-community)
+**Portainer:** follow the [Portainer guide](guides/PORTAINER.md) or use repository `https://github.com/blankboxcode/blankbox-community`, branch `main`, Compose path `deploy/docker-image/compose.yaml`. The [Compose file](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/deploy/docker-image/compose.yaml) uses our prebuilt image.
 
 ## Install from a ZIP
 
 ### Linux
 
-Requires a Debian/Ubuntu-class computer with **Python 3.10+ and systemd**.
+Requires Python 3.10+ and systemd on a Debian/Ubuntu-class computer.
 
-1. Download and extract the **Linux installation ZIP** above.
-2. Open the extracted application folder until you see `setup-linux.sh` and `RELEASE.json`. Choose **Open in Terminal** in your file manager.
+1. Download, verify and extract the **Linux installation ZIP**.
+2. Open a terminal in the extracted `blankbox-community-1.0.0` folder, where `setup-linux.sh` and `RELEASE.json` are visible.
 3. Run:
 
    ```sh
    sudo ./setup-linux.sh
    ```
 
-4. Choose **Install or update**, select an access mode and use port `25265` for a fresh installation unless you need another port. Blank Box then runs as a background service.
+4. Choose **Install or update**, then choose where to open Blank Box:
 
-| Linux access choice | Open Blank Box here |
-| --- | --- |
-| **1: This computer** | On the server computer: `http://127.0.0.1:25265`. |
-| **2: Trusted home network by IP** | On the server or another trusted home-network device: `http://SERVER-IP:25265`. |
-| **3: The same network plus blankbox.local** | The same access as option 2, plus `http://blankbox.local:25265` where discovery works. The IP address still works. |
+   | Choice | Address |
+   | --- | --- |
+   | 1: This computer | `http://127.0.0.1:25265` on the computer running Blank Box. |
+   | 2: Trusted home network by IP | `http://SERVER-IP:25265` on this computer or another home-network device. |
+   | 3: The same network plus blankbox.local | The same IP access, plus `http://blankbox.local:25265` where discovery works. |
 
-Replace `SERVER-IP` with the server's local address from its network settings or your router's device list. Use your chosen port in every address. Option 3 needs optional Avahi discovery packages **before** running setup; see the [Linux guide](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.10/guides/LINUX.md).
+   Use your chosen port if different. Option 3 needs optional discovery packages; see [Linux](guides/LINUX.md).
 
-Read the recovery key privately on the server:
+5. Read the recovery key privately, then open your chosen address and create your local account:
 
-```sh
-sudo cat /var/lib/blankbox/access-key.txt
-```
-
-Open your chosen address, use the key to create your local owner username/password and complete setup. Keep the key for password recovery; normal sign-in uses your username and password.
-
-None of the three access choices automatically enables outside-home Internet access or disables outgoing Internet. A private proxy or VPN configured separately has its own settings. [Networking help](https://github.com/blankboxcode/blankbox-community/wiki/Access-on-Your-Home-Network)
-
-### Windows (experimental)
-
-1. Download the **Windows x64 ZIP** and choose **Extract All** in File Explorer.
-2. Open the extracted folder and double-click `setup-windows.cmd`. Choose **Install or update** and follow the prompts.
-3. After setup, open PowerShell and start Blank Box:
-
-   ```powershell
-   powershell.exe -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\BlankBox\start-windows.ps1"
+   ```sh
+   sudo cat /var/lib/blankbox/access-key.txt
    ```
 
-4. Keep that window open. Open `http://127.0.0.1:25265`, using your chosen port if different. Read `%LOCALAPPDATA%\BlankBox\data\access-key.txt` privately to claim your owner profile.
+None of these access choices automatically enables outside-home Internet access or disables outgoing Internet. A separately configured private proxy or VPN keeps its own settings.
 
-The optional startup task runs **after user sign-in**, not as an always-on Windows service. [Full Windows guide](https://github.com/blankboxcode/blankbox-community/blob/v0.1.0-beta.8/guides/WINDOWS.md)
+### Windows, experimental
+
+The earlier Windows package includes Python. Extract it, open `setup-windows.cmd` and follow its [Windows guide](guides/WINDOWS.md). It does not include the current Linux/Docker features and cannot open a schema 22 catalog.
 
 ## Make it your library
 
-Start with a shelf, a folder or a connected catalog, then bring the rest of your collection together at your own pace.
+Start with a shelf, a folder or a connected catalog, then add the rest at your own pace.
 
-| What you want to do | How it works |
-| --- | --- |
-| Catalog discs, books, records and other physical media | Add a title or scan a barcode, review the edition, then record each copy's format, condition and location. |
-| Browse files on your drives | Configure a readable source folder, index it and review the proposed matches. Files remain in their original locations. |
-| Bring in Plex or Jellyfin | Connect your existing server and sync its catalog. Keep its source alongside physical copies and local files for the same title. |
-| Organize shelves and collections | Save custom groups or collections based on genre, format and other rules; record favorites and local activity. |
-| Read, listen or watch | Choose an available source from a title. Use the built-in player or reader for supported files, a connected service, or a compatible external app. |
-| Add and correct details | Open an item popup, choose details or artwork beside the cover, and edit a selected physical copy directly. Save title/edition artwork, packaging and release labels. |
-| Save entry preferences | Choose starting formats by media type and a default title-search source in Settings → Collection → Physical Media preferences. |
-| Record digital ownership | Add purchased, redeemed or code-included platform records separately from playback and streaming searches. |
+- **Import Media:** import and review a collection list, index configured folders, or connect a Plex/Jellyfin catalog.
+- **Physical Media:** add copies, save entry defaults and manage movie/TV box sets.
+- **Item details:** choose editions, artwork, playback, streaming searches and digital-platform records in a popup over your library.
+- **Collections:** organize custom groups and rules, locations, favorites and activity.
+- **Settings:** manage service links, offline database packs, local account recovery and optional OIDC.
 
-A title, an edition and a copy describe different parts of your collection. A digital file or connected source gives access to a title; it does not automatically record an owned physical copy. Review possible matches before combining records.
+[First steps](FIRST-STEPS.md) · [Collection imports and box sets](guides/COLLECTIONS.md) · [Artwork and collector details](guides/COLLECTOR-DETAILS.md) · [Playback](guides/PLAYBACK.md) · [Accounts](guides/ACCOUNTS.md) · [Wiki](https://github.com/blankboxcode/blankbox-community/wiki)
 
-[Getting started](https://github.com/blankboxcode/blankbox-community/wiki/Getting-Started) · [Using your library](https://github.com/blankboxcode/blankbox-community/wiki/Using-Your-Library) · [Organizing collections](https://github.com/blankboxcode/blankbox-community/wiki/Organizing-Collections) · [Offline metapacks](https://github.com/blankboxcode/blankbox-community/wiki/Offline-Metapacks)
+A catalog entry does not create a playable file or prove digital ownership. Database facts depend on installed packs; artwork can be uploaded manually. Blank Box currently uses one shared household account.
 
-Learn how to manage [packaging, artwork and digital copies](guides/COLLECTOR-DETAILS.md), or set up [sign-in, optional OIDC and password recovery](guides/ACCOUNTS.md). Blank Box currently uses one shared household account.
+## Updates
 
-## Update an existing installation
+Create a complete recovery point, download and verify the new package, and keep the same library and settings.
 
-Create a complete recovery point first. For native Linux, download the **Linux installation ZIP**; for Docker, download the small **Docker setup ZIP**. Extract into a new folder and verify it with your previously trusted verifier. Keep the same library location and existing settings.
+- **Native Linux:** run `sudo ./install-linux.sh` from the new verified installation folder.
+- **Docker Compose:** copy your existing `.env` and supported Compose override into the new verified Docker setup folder, then run `./upgrade-docker.sh` with sudo if Docker needs it.
+- **Portainer:** follow the [stack update guide](guides/PORTAINER.md#keep-updates-and-the-stack-definition-together) so its saved definition and recovery point match the accepted image.
 
-**Native Linux:** open a terminal in the new extracted folder and run:
-
-```sh
-python3 /opt/blankbox/current/release_files.py . --trusted-key /opt/blankbox/current/release-trust.json
-sudo ./install-linux.sh
-```
-
-This keeps your account, library, port, access mode, sources and backup configuration.
-
-**Docker:** use the [short image migration guide](guides/DOCKER-MIGRATION.md) for the full transition. Keep the current container running, then copy your existing `.env` and `compose.override.yaml` or `compose.override.yml` into the new Docker setup folder. Keep other custom configuration and secret files outside that folder, preserving their references. Keep the same project name, UID/GID, port and volume or bind folder, then run:
-
-```sh
-./upgrade-docker.sh
-```
-
-The helper verifies and pulls the signed image digest before stopping, makes a paired snapshot and checks readiness. It retains existing IDs, including `10001:10001`, and persists the accepted image in `.env`. Use `sudo ./upgrade-docker.sh` if Docker requires sudo. It does not move data or change ownership; relative bind paths must still resolve to the same folders. Failed activation restores the previous image and paired catalog.
-
-Open your usual address, sign in and refresh the browser. Check your items, artwork and sources. This update migrates beta.8/beta.9 catalogs from **schema 20 to 22**. Keep the previous application and paired snapshot; returning to older code requires that earlier catalog state. [Full update and rollback guide](UPDATES.md)
+Open your usual address and refresh the browser. Keep the previous software and paired recovery snapshot. [Full update and rollback guide](UPDATES.md) · [Older local-image migration](guides/DOCKER-MIGRATION.md)
 
 ## Protect your library
 
-Use a separate backup drive and test a restore into a **new empty destination**. Library recovery protects saved records, managed copies and paired offline-pack assets. It **cannot recreate missing linked source-drive originals**; protect those bytes separately. Portable restore excludes account/provider secrets, so reconnect Plex/Jellyfin afterward.
+Use separate storage and test a restore into a new empty destination. A library recovery point protects catalog records and managed copies. It **cannot recreate missing linked originals** on your source drives; back up those separately. Core and database packs update independently.
 
-Core and metapacks update independently and optionally. Keep earlier software and paired recovery material for rollback. [Recovery](RECOVERY.md) · [Updates](UPDATES.md)
+[Recovery](RECOVERY.md) · [Offline packs](METAPACKS.md)
 
 ## Feedback and support
 
-We welcome [bugs, setup questions, feedback and experiences](https://github.com/blankboxcode/blankbox-community/issues/new/choose). Include your installed version, device/OS, action, expected result and actual result. Keep household titles, paths, credentials, catalogs and backups out of public reports. Support is best effort.
+We welcome [bugs, questions and suggestions](https://github.com/blankboxcode/blankbox-community/issues/new/choose). Include the installed version, device/OS, steps and expected result. Keep credentials, household catalogs and private paths out of public reports.
 
-[Feedback guide](FEEDBACK.md) · [Support](SUPPORT.md) · [User guides](https://github.com/blankboxcode/blankbox-community/wiki)
+[Feedback guide](FEEDBACK.md) · [Support](SUPPORT.md)
 
 ## License and source builds
 
-Our original code is **source available for personal, noncommercial use** under [LICENSE](LICENSE). Redistribution and commercial use require separate permission. Third-party components retain their own licenses; see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+Our code is source available for personal, noncommercial use under [LICENSE](LICENSE). Redistribution and commercial use require separate permission. Third-party components retain their own licenses; see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 <details>
-<summary>Build the browser client from source (developers)</summary>
+<summary>Build from source</summary>
 
 Use Node.js 22.13+, Python 3.10+ and SQLite FTS5:
 
@@ -202,6 +162,6 @@ npm run build
 python3 box/server.py --data /path/to/new-blankbox-data --port 25265
 ```
 
-The Core has no required third-party Python packages. To include the distributed starter packs in a source build, copy the signed `bundled-metadata` directory from the matching installation package into `box/` before first start.
+The Core has no required third-party Python packages. Starter packs can be copied from the matching installation package into `box/bundled-metadata` before first start.
 
 </details>

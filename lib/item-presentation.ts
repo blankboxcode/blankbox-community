@@ -13,7 +13,7 @@ export function itemEditions(item:MediaItem):ItemEdition[] {
     }
     for(const [id,copies] of releases) {
       const source=copies[0];
-      const label=[source.label,source.edition].filter(Boolean).join(' · ');
+      const label=source.packageTitle||[source.label,source.edition].filter(Boolean).join(' · ');
       editions.push({id:`physical:${id}`,label,subtitle:[source.packaging,source.releaseLabel].filter(Boolean).join(' · ')||`${copies.length} ${copies.length===1?'copy':'copies'}`,releaseId:source.physicalReleaseId||'',versionId:version.id,sources:copies,physical:true});
     }
     const files=sources.filter(row=>row.type==='local'||row.type==='digital');

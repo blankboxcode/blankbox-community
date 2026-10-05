@@ -60,7 +60,7 @@ def compact(item):
     result['description']=str(item.get('description') or '')[:400]
     # Rich source snapshots, episode/track trees and edition details are fetched
     # only when a title is opened. All physical rows remain for accurate rules.
-    fields=('packaging','releaseLabel','id','type','label','url','mime','available','addedAt','edition','location','platform','barcode','discId','creator','season','providerItemId','metadataIdentifiers')
+    fields=('packageType','packageTitle','physicalReleaseId','ownedCopyId','packaging','releaseLabel','id','type','label','url','mime','available','addedAt','edition','location','platform','barcode','discId','creator','season','providerItemId','metadataIdentifiers')
     result['sources']=[{k:s[k] for k in fields if k in s} for s in item.get('sources',[]) if s.get('type')=='physical']
     selected=[];types=set()
     for source in item.get('sources',[]):
@@ -86,9 +86,9 @@ class LibraryBrowse:
         stamp=refs.stamp if ready else None
         with self.lock, self.box.db() as db:
             projection=db.execute("SELECT value FROM browse_state WHERE key='projection'").fetchone()
-            if not projection or projection[0]!='3':
+            if not projection or projection[0]!='4':
                 db.execute('INSERT OR IGNORE INTO browse_dirty SELECT id FROM items')
-                db.execute("INSERT INTO browse_state VALUES('projection','3') ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+                db.execute("INSERT INTO browse_state VALUES('projection','4') ON CONFLICT(key) DO UPDATE SET value=excluded.value")
             prior=db.execute("SELECT value FROM browse_state WHERE key='packs'").fetchone()
             if ready and (not prior or prior[0]!=stamp):
                 db.execute('INSERT OR IGNORE INTO browse_dirty SELECT id FROM items')
@@ -132,7 +132,7 @@ class LibraryBrowse:
             added=max([item.get('addedAt','')]+[s.get('addedAt','') for s in item.get('sources',[])])
             released=item.get('releaseDate') or (str(item['year'])+'-01-01' if item.get('year') else '')
             edition=' '.join(sorted(s.get('edition','') for s in item.get('sources',[])))
-            text=' '.join([item.get('title',''),item.get('genre',''),str(item.get('year') or ''),item.get('description',''),*genres(item),*[str(s.get(k) or '') for s in item.get('sources',[]) for k in ('packaging','releaseLabel','label','edition','volume','issue','region','catalogNumber','mime','location','path','barcode','creator','publisher','platform')]])
+            text=' '.join([item.get('title',''),item.get('genre',''),str(item.get('year') or ''),item.get('description',''),*genres(item),*[str(s.get(k) or '') for s in item.get('sources',[]) for k in ('packageTitle','packaging','releaseLabel','label','edition','volume','issue','region','catalogNumber','mime','location','path','barcode','creator','publisher','platform')]])
             text+=' '+' '.join(str(record.get(key) or '') for record in item.get('digitalPlatforms',[]) for key in ('platform','status','notes'))
             digital=int(any(s.get('type') in ('local','digital','jellyfin','plex','emby') for s in item.get('sources',[])))
             db.execute('INSERT INTO browse_documents VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(item_id) DO UPDATE SET data=excluded.data,title_key=excluded.title_key,search_key=excluded.search_key,kind=excluded.kind,added=excluded.added,released=excluded.released,edition=excluded.edition,favorite=excluded.favorite,digital=excluded.digital,sample=excluded.sample',(item['id'],json.dumps(card),normalized(item['title']),normalized(text),item['kind'],added,released,normalized(edition),bool(item.get('favorite')),digital,bool(item.get('sample'))))
@@ -200,17 +200,25 @@ class LibraryBrowse:
             physical=view=='physical' and not q
             shelf=physical and options.get('shelves') in (True,'true','1')
             base='browse_documents d'
+            copies_expression='p.copies'
             if physical:
+                standalone=options.get('standalonePhysical') in (True,'true','1')
+                source_clause="json_extract(s.value,'$.type')='physical' AND COALESCE(json_extract(s.value,'$.packageType'),'')<>'box-set' AND (CASE WHEN d.kind='game' THEN 'platform:'||COALESCE(NULLIF(json_extract(s.value,'$.platform'),''),'Platform not set') ELSE 'format:'||COALESCE(NULLIF(json_extract(s.value,'$.label'),''),'Other') END)=p.facet AND COALESCE(NULLIF(trim(json_extract(s.value,'$.location')),''),'Location not set')=p.location"
                 if shelf:base+=' JOIN browse_physical p ON p.item_id=d.item_id'
                 clause='p.item_id=d.item_id'
                 if facet!='all':clause+=' AND p.facet=?';params.append(facet)
+                if standalone:
+                    clause+=' AND EXISTS(SELECT 1 FROM json_each(d.data,\'$.sources\') s WHERE '+source_clause+')'
+                    if shelf:
+                        conditions.append('EXISTS(SELECT 1 FROM json_each(d.data,\'$.sources\') s WHERE '+source_clause+')')
+                        copies_expression='(SELECT COUNT(*) FROM json_each(d.data,\'$.sources\') s WHERE '+source_clause+')'
                 conditions.append(('p.facet=?' if facet!='all' else '1') if shelf else 'EXISTS(SELECT 1 FROM browse_physical p WHERE '+clause+')')
             where=' AND '.join(conditions)
             base_query=' FROM '+base+' WHERE '+where
             count_query='SELECT COUNT(*)'+base_query if not shelf else 'SELECT COUNT(*) FROM (SELECT d.item_id,p.location'+base_query+' GROUP BY d.item_id,p.location)'
             total=db.execute(count_query,params).fetchone()[0]
             if shelf:
-                rows=db.execute('SELECT d.item_id,p.location,SUM(p.copies) copies'+base_query+' GROUP BY d.item_id,p.location ORDER BY p.location,'+order+' LIMIT ? OFFSET ?',(*params,limit,offset)).fetchall()
+                rows=db.execute('SELECT d.item_id,p.location,SUM('+copies_expression+') copies'+base_query+' GROUP BY d.item_id,p.location ORDER BY p.location,'+order+' LIMIT ? OFFSET ?',(*params,limit,offset)).fetchall()
             else:rows=db.execute('SELECT d.item_id'+base_query+' ORDER BY '+order+' LIMIT ? OFFSET ?',(*params,limit,offset)).fetchall()
             ids=list(dict.fromkeys(r['item_id'] for r in rows));items=self._cards(db,ids)
             groups=[]
@@ -219,15 +227,20 @@ class LibraryBrowse:
                     group=next((g for g in groups if g['location']==row['location']),None)
                     if not group:
                         # Count all copies at this filtered location, not just this page.
-                        copies=db.execute('SELECT SUM(p.copies)'+base_query+' AND p.location=?',(*params,row['location'])).fetchone()[0]
+                        copies=db.execute('SELECT SUM('+copies_expression+')'+base_query+' AND p.location=?',(*params,row['location'])).fetchone()[0]
                         group={'location':row['location'],'copies':copies,'entries':[]};groups.append(group)
                     group['entries'].append({'itemId':row['item_id'],'copies':row['copies']})
             return {'items':items,'total':total,'offset':offset,'limit':limit,'shelfGroups':groups,'indexStatus':'unavailable' if self.failure else 'ready' if ready else 'building'}
 
     def facets(self,db):
+        sources=" FROM browse_documents d,json_each(d.data,'$.sources') s WHERE json_extract(s.value,'$.type')='physical'"
+        identity="COALESCE(json_extract(s.value,'$.ownedCopyId'),d.item_id||':'||json_extract(s.value,'$.id'))"
+        label="CASE WHEN d.kind='game' THEN COALESCE(NULLIF(json_extract(s.value,'$.platform'),''),'Platform not set') ELSE COALESCE(NULLIF(json_extract(s.value,'$.label'),''),'Other') END"
+        facet="(CASE WHEN d.kind='game' THEN 'platform:' ELSE 'format:' END)||("+label+")"
+        location="COALESCE(NULLIF(trim(json_extract(s.value,'$.location')),''),'Location not set')"
         return {'genres':[r[0] for r in db.execute('SELECT MIN(label) FROM browse_genres GROUP BY key ORDER BY key')],
-                'physicalFacets':[dict(r) for r in db.execute('SELECT p.facet id,p.label,d.kind,SUM(p.copies) count FROM browse_physical p JOIN browse_documents d ON d.item_id=p.item_id GROUP BY p.facet,d.kind ORDER BY p.label')],
-                'locations':[dict(r) for r in db.execute('SELECT location,SUM(copies) copies FROM browse_physical GROUP BY location ORDER BY location')]}
+                'physicalFacets':[dict(r) for r in db.execute('SELECT '+facet+' id,'+label+' label,d.kind,COUNT(DISTINCT '+identity+') count'+sources+' GROUP BY '+facet+',d.kind ORDER BY label')],
+                'locations':[dict(r) for r in db.execute('SELECT '+location+' location,COUNT(DISTINCT '+identity+') copies'+sources+' GROUP BY location ORDER BY location')]}
 
     def collections(self,db):
         revision=db.execute("SELECT value FROM browse_state WHERE key='revision'").fetchone()[0]

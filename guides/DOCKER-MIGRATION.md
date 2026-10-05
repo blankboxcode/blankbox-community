@@ -5,7 +5,7 @@ Already running Blank Box from an image you built locally? You can switch to our
 ## Five steps
 
 1. Create a complete recovery point in **Settings → System & About → Update Blank Box software**. Keep your current container running.
-2. Download the small [Docker setup ZIP](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/downloads/blankbox-docker-0.1.0-beta.10-1.zip), extract it into a new folder, and [verify it using your previously trusted package](../UPDATES.md#trust).
+2. Download the small [Docker setup ZIP](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/downloads/blankbox-docker-1.0.0-1.zip), extract it into a new folder, and [verify it using your previously trusted package](../UPDATES.md#trust).
 3. Copy your current `.env` and `compose.override.yaml` or `compose.override.yml` into that new folder. These are the only permitted additions to the signed setup files. Keep other custom Compose files and referenced secret/config files outside that folder and preserve their references. Keep the same project name, UID/GID, port, media mounts and data volume or bind folder. Relative paths must still point to the same existing files and folders. Keep access settings in `.env`; sudo can omit settings exported only in your terminal. For trusted home-network access, keep `BLANKBOX_BIND_ADDRESS=0.0.0.0` there.
 4. Open a terminal in the new setup folder, where `image.json` and `upgrade-docker.sh` are visible, and run:
 

@@ -160,6 +160,8 @@ def sync_owned_releases(db: sqlite3.Connection, item: dict):
     for source in item.get('sources', []):
         if not isinstance(source, dict) or source.get('type') != 'physical' or not source.get('physicalReleaseId'):
             continue
+        if source.get('packageType')=='box-set':
+            continue
         physical_id = source['physicalReleaseId']
         contents = {row[0] for row in db.execute('SELECT item_id FROM package_contents WHERE release_id=?', (physical_id,))}
         if contents != {item['id']}:
