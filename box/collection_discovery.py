@@ -25,7 +25,7 @@ def roots(title):
         before, found, _ = title.partition(separator)
         if found and len(key(before)) >= 5:
             result.add(key(before))
-    numbered = re.sub(r'\s+(?:(?:part|vol\.?|volume|chapter)\s*)?(?:\d+|II|III|IV|V|VI|VII|VIII|IX|X)(?:\s*[:—-].*)?$', '', title, flags=re.I)
+    numbered = re.sub(r'\s+(?:(?:part|vol\.?|volume|chapter)\s*)?(?:\d+|II|III|IV|V|VI|VII|VIII|IX|X)(?:\s*[:\u2014-].*)?$', '', title, flags=re.I)
     if numbered != title and len(key(numbered)) >= 5:
         result.add(key(numbered))
     tokens = key(title).split()

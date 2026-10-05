@@ -13,7 +13,7 @@ export function metadataMatchCreator(candidate: MetadataCandidate) {
 export function metadataMatchLabel(candidate: MetadataCandidate) {
   const creator = metadataMatchCreator(candidate);
   const type = candidate.kind === 'music' ? candidate.catalogDetails?.releaseType : '';
-  return `${candidate.title}${candidate.year ? ` (${candidate.year})` : ''}${creator ? ` — ${creator}` : ''}${type ? ` · ${type}` : ''}`;
+  return `${candidate.title}${candidate.year ? ` (${candidate.year})` : ''}${creator ? ` - ${creator}` : ''}${type ? ` · ${type}` : ''}`;
 }
 
 const normalized = (value: string) => value.normalize('NFKD').toLocaleLowerCase().replace(/\p{M}/gu, '').replace(/[^\p{L}\p{N}]/gu, '');
