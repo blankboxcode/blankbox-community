@@ -43,7 +43,7 @@ class CollectionReferences:
     """Rebuildable reference-only SQLite cache, separate from household identity.
 
     Cache compact organizing clues only. Pack removal invalidates it; confirmed
-    facts and owner-approved collection snapshots live in the household catalog.
+    facts and manually confirmed collection snapshots live in the household catalog.
     """
     def __init__(self, packs, cache=None, operation_lock=None):
         from pathlib import Path

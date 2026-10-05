@@ -52,7 +52,7 @@ def save_set(db, data, timestamp):
     for position, (target, work_id) in enumerate(cleaned):
         db.execute('INSERT INTO completion_members(set_id,position,title,title_key,year,desired_format,work_id) VALUES(?,?,?,?,?,?,?)',
                    (identifier, position, target['title'], title_key(target['title']), target['year'], target['format'], work_id))
-    # Owner-approved organizing provenance, never an external completeness claim.
+    # Manually confirmed organizing provenance, never an external completeness claim.
     if data.get('recommendationSource'):
         source = data['recommendationSource']
         if not isinstance(source, str) or len(source) > 160:
