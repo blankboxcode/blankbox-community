@@ -4,7 +4,7 @@ We recommend this path for a dedicated Debian or Ubuntu-class Blank Box. It requ
 
 ## 1. Extract the release
 
-Use `blankbox-community-1.0.1.zip` for Linux. The Windows ZIP is for Windows; the source ZIP is for building from source. Follow [download verification](../UPDATES.md#trust), then extract the Community ZIP. In your file manager, open the resulting `blankbox-community-1.0.1` folder and choose **Open in Terminal**. Check that `setup-linux.sh` and `RELEASE.json` are in that folder before running the next command. For an existing installation, jump to [Upgrade and rollback](#upgrade-and-rollback). For a restore-only test of an existing library, follow [Recovery](../RECOVERY.md).
+Use `blankbox-community-1.0.0.zip` for Linux. The Windows ZIP is for Windows; the source ZIP is for building from source. Follow [download verification](../UPDATES.md#trust), then extract the Community ZIP. In your file manager, open the resulting `blankbox-community-1.0.0` folder and choose **Open in Terminal**. Check that `setup-linux.sh` and `RELEASE.json` are in that folder before running the next command. For an existing installation, jump to [Upgrade and rollback](#upgrade-and-rollback). For a restore-only test of an existing library, follow [Recovery](../RECOVERY.md).
 
 ## 2. Choose access and run setup
 
@@ -119,7 +119,7 @@ sudo ./install-linux.sh
 
 This keeps your existing account, library, port, access mode, sources and backup configuration. The installer snapshots the catalog and paired assets, activates the new release and waits for readiness. Open your usual address, sign in normally and refresh the browser. Keep the previous release and the printed recovery snapshot. If you want to change the listener as well, use `sudo ./setup-linux.sh` and select your intended access mode and port.
 
-Version 1.0.1 migrates existing Linux/Docker libraries to schema 23, adding preorder and delivery records. Version 1.0.0 cannot open schema 23. Returning to an older application requires its paired pre-update catalog and assets; preserve later edits before a deliberate restore. See [Updates](../UPDATES.md#rollback) for commands and recovery preparation.
+Version 1.0.0 keeps schema 22 for existing installations. Updating an older schema 20 Linux/Docker library migrates it to schema 22. Returning to that older application requires its paired pre-update catalog and assets; preserve later edits before a deliberate restore. See [Updates](../UPDATES.md#rollback) for commands and recovery preparation.
 
 Roll back the most recent compatible upgrade with:
 

@@ -16,7 +16,7 @@ Different rules must all match. Multiple choices within one rule match any selec
 
 Halloween and holiday starting points open an editable draft. Review the genres before saving. Collections group existing household titles without moving files, creating editions, or changing copy counts. Removing a collection removes its grouping only.
 
-Use **Plan missing titles** for the separate Complete My Collection / Wishlist workflow. Missing editions require reference evidence; store inventory does not define collection completeness.
+Use **Plan missing titles** for the separate Complete My Collection / Intend to Buy workflow. Missing editions require reference evidence; store inventory does not define collection completeness.
 
 ## Suggested collections and missing titles
 
@@ -26,7 +26,7 @@ Each suggestion shows titles already in your library out of the known reference 
 
 Use **Approve all (count)** to create editable collections and linked plans from every currently offered suggestion, including those under Show more. It uses the suggested names and all listed members, then shows completion status. It creates no buying intentions or owned copies. You can edit or remove each resulting collection afterward. Later suggestions require another explicit approval. Groups remain recommendations with partial reference coverage; source groups over 200 titles are kept out of automatic completion plans.
 
-Choose **Review & save collection**, rename it and deselect titles outside your preferred scope. Saving creates an editable collection and a linked title plan. **Wishlist** can add a missing reference as a deliberate intention; the desired format is a preference, not evidence that that release exists. **Saved collection sets → Edit titles & order** can change the denominator, add/remove/reorder titles and choose desired formats. Ignored titles are excluded from the goal. Existing connected titles are not shown as missing titles in an accepted Any-format title plan.
+Choose **Review & save collection**, rename it and deselect titles outside your preferred scope. Saving creates an editable collection and a linked title plan. **Intend to Buy** can add a missing reference as a deliberate intention; the desired format is a preference, not evidence that that release exists. **Saved collection sets → Edit titles & order** can change the denominator, add/remove/reorder titles and choose desired formats. Ignored titles are excluded from the goal. Existing connected titles are not shown as missing titles in an accepted Any-format title plan.
 
 When an item's genre is empty, a consistent exact-year/title reference or saved identifier can inform its collection genres without changing the saved item or confirming a metadata match. Your own genres and explicit corrections take priority. Saving a genre/rule collection retains its reviewed fallback genre clues, so the collection can remain useful after pack removal. No original files, copies or upstream provider records change.
 

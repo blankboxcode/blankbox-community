@@ -1,8 +1,8 @@
 # Blank Box Community support
 
-We use [GitHub Issues](https://github.com/blankboxcode/blankbox-community/issues/new/choose) for installation questions, bugs, feedback and experiences. Join our [Discord community](https://discord.com/invite/fD8k4sn9sk) for conversation and announcements. Read [Feedback and issues](FEEDBACK.md) before posting. Support is best effort, with no guaranteed response time.
+We use [GitHub Issues](https://github.com/blankboxcode/blankbox-community/issues/new/choose) for installation questions, bugs, feedback and experiences. Read [Feedback and issues](FEEDBACK.md) before posting. Support is best effort, with no guaranteed response time.
 
-Start with the README's [ZIP installation](README.md#install-from-a-zip) or [Docker quick start](README.md#install-with-docker). The [wiki](https://github.com/blankboxcode/blankbox-community/wiki) explains everyday use, collections, networking and recovery.
+Start with the README's [ZIP installation](README.md#install-from-a-zip) or [Docker quick start](README.md#quick-start-with-docker). The [wiki](https://github.com/blankboxcode/blankbox-community/wiki) explains everyday use, collections, networking and recovery.
 
 | You need help with | Read |
 | --- | --- |

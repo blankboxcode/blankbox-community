@@ -22,8 +22,6 @@ When the same title already exists, review attaching the new evidence to it. Kee
 
 Open an item and confirm its title, year, editions and copy count. Use **Edit title details** for shared information or select an edition and choose **Edit this copy** for its fields. **Edit artwork** is beside the cover; **Choose details source** selects the saved information you prefer. Check playback using the file or connected-app buttons. Your edits and confirmed facts stay in your library. Save a collection, add the item, and reopen it. Reference suggestions do not add owned copies.
 
-Library cards show connected-source and edition counts beneath the title. Wishlist and Preorders are separate planning pages in My Library and Physical Media. Use Wishlist for intended purchases and Preorders for paid orders awaiting delivery. [Purchasing guide](guides/COLLECTOR-DETAILS.md#wishlist-and-preorders).
-
 ## 4. Protect your work
 
 Export the complete SQLite catalog to a new file and copy it to separate storage. Configure a separate writable backup destination in your platform configuration, then run a backup from Storage & Backup. A catalog export includes metadata and saved owner artwork, but not media files. The library backup covers saved records and managed copies, not linked source-drive originals. Copies of eligible personal files require a separate, confirmed Import action; follow [Recovery](RECOVERY.md).

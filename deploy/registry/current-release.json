@@ -1,12 +1,12 @@
 {
   "format": 1,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "repository": "blankboxcode/blankbox-community",
-  "sourceRevision": "cd3869cede2fcf9825877945c364595a9ac2ccc5",
-  "packageSha256": "548c837d6088fa2f347020e60f661d424513a3b20e8f926b9a8ba27b33cc0a65",
-  "manifestSha256": "b3408c0961e5ea7e6aaa0dc5a18b409c466aadfb788ca9f5967d7e4975dd0f91",
+  "sourceRevision": "93b52ecece5dd81b357b45b2247ad2d3b1d6e11b",
+  "packageSha256": "75542aedadd85203b89ca58295d2cf57d1eeebaad2d5504830e520478a9e86e5",
+  "manifestSha256": "a2890556b34cccdb03626892f0a34352d55e61707e84459aad32651ed388cef2",
   "platform": "linux/amd64",
   "apiVersion": 1,
-  "catalogSchema": 22,
+  "catalogSchema": 23,
   "minimumPackReader": 5
 }

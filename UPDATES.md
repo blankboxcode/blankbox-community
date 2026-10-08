@@ -14,7 +14,7 @@ Public pack signatures are checked against the installed Core key before activat
 
 ## Update your installation
 
-Choose the [native Linux installation ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v1.0.1/blankbox-community-1.0.1.zip) or the small [Docker image setup ZIP](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/downloads/blankbox-docker-1.0.1-1.zip), then extract it into a **new folder**. Keep your current installation and data where they are. Source archives are developer downloads.
+Choose the [native Linux installation ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v1.0.0/blankbox-community-1.0.0.zip) or the small [Docker image setup ZIP](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/downloads/blankbox-docker-1.0.0-1.zip), then extract it into a **new folder**. Keep your current installation and data where they are. Source archives are developer downloads.
 
 Before updating, open **Settings → System & About → Update Blank Box software**, create a complete recovery point on your configured separate backup drive, and wait for it to finish. The web app prepares the backup; the platform installer performs the update. A library recovery point cannot recreate missing linked original files, so back up your source drives separately.
 
@@ -58,11 +58,11 @@ To continue building locally, use the full Linux/Docker installation ZIP and its
 
 ### Windows
 
-Our separate Windows download remains the experimental **0.1.0-beta.8** package, schema **20**. This Linux/Docker update does not include a new Windows installer. Follow the guide supplied with the Windows package and do not open an upgraded schema 23 catalog with it.
+Our separate Windows download remains the experimental **0.1.0-beta.8** package, schema **20**. This Linux/Docker update does not include a new Windows installer. Follow the guide supplied with the Windows package and do not open an upgraded schema 22 catalog with it.
 
 ## Rollback
 
-Version 1.0.1 uses catalog schema **23**. Existing schema 22 and older supported Linux/Docker libraries migrate to schema 23, adding preorder and delivery tables. Existing accounts, covers, copy IDs and reference selections are retained. Clear saved provider duplicates can also consolidate during the first startup and after syncs, retaining sources and compatible entered details. Conflicts and uncertain matches stay separate; see [Connected libraries](guides/CONNECTED-LIBRARIES.md). Returning to a pre-consolidation arrangement requires that earlier catalog/assets pair. Version 1.0.0 and older Core versions cannot read schema 23. Returning to it requires both its application files and its **paired pre-update catalog/assets snapshot**. Preserve any later edits before restoring that earlier state.
+Version 1.0.0 keeps catalog schema **22**. Existing schema 22 libraries need no migration. Older schema 20 Linux/Docker libraries migrate to schema 22. Existing accounts, covers, copy IDs and reference selections are retained. An older Core cannot read schema 22. Returning to it requires both its application files and its **paired pre-update catalog/assets snapshot**. Preserve any later edits before restoring that earlier state.
 
 For a compatible native Linux rollback:
 

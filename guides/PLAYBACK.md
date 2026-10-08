@@ -41,18 +41,3 @@ DVD/Blu-ray entries are catalog records. In **Information → Play your disc in 
 ## Privacy and access
 
 LAN playback is device ↔ Core only, with household authentication. Stream URLs resolve catalog item/source IDs; they are not public bearer links and cannot request arbitrary filesystem paths. Existing session expiry governs access. Playback adds no separate history table; the existing resume-progress setting remains. No new remote-access service or cloud media upload is involved.
-
-
-## Choosing sources and versions
-
-Open a title and use **Watch**, **Listen**, or **Read & listen**. Each connected app and **Local** has one playback row. **Change source** chooses another attached version or file quality without adding physical ownership. Opening or browsing a source also updates the main playback button. **Your editions** retains the separate edition/box-set chooser with copy locations and shared package details.
-
-TV seasons and episodes follow the playback source above. Choose a season, then expand its episode list. Connected music albums load songs from the selected Jellyfin or Plex album, with disc navigation when supplied. Connected tracks and episodes appear in pages of 25; local files use pages of 20. **Open track** or **Open episode** opens that entry in its connected app. These lists describe provider availability, not physical ownership or additional library titles.
-
-Refresh episodes/tracks beside the information and activity controls. A failed refresh keeps saved details available and offers retry. **Manage connected sources** and connected-app guidance sit at the bottom beside **Manage this item**. Available playback qualities and supported codecs still depend on the connected app or local browser.
-
-When importing a possible match, **Keep current details** retains the title's current metadata source and manual edits. Choosing incoming details explicitly changes the metadata source. A connected source being added does not by itself replace the selected details source. Reviews remain available in Import Media until resolved.
-
-Library totals count saved titles, TV series and music albums. Seasons, episodes, tracks, editions and copies have separate counts. A title attached to several connected apps is counted once. Separately saved entries count separately.
-
-Clear connected duplicates can consolidate on update and sync while retaining separate cuts and sources. Conflicts and uncertain matches remain separate. See [Connected-library matching](CONNECTED-LIBRARIES.md).
