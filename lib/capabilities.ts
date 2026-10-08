@@ -3,6 +3,7 @@ export const capabilityNames = [
   'localPlayback',
   'localMetadata',
   'physicalCollection',
+  'preorders',
   'managedImports',
   'verifiedBackups',
   'jellyfinCatalog',

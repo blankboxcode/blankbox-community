@@ -9,11 +9,14 @@ import threading
 import unicodedata
 from datetime import datetime
 from library_collections import activity_states, genres, list_collections
+from provider_matching import key as edition_key
 
 
-# Evaluate the review queue once per page/summary. A correlated JSON scan per
-# title makes even a modest pending review queue stall large libraries.
-VISIBLE_ITEM_CLAUSE = "d.item_id NOT IN (SELECT COALESCE(json_extract(r.data,'$.incoming.id'),'') FROM review_queue r)"
+# Only newly copied, staged files wait outside the visible library. Refresh
+# proposals must never hide saved provider titles. Older folder-import reviews
+# predate the explicit flag and can be recognized by their managed file source.
+STAGED_REVIEW_IDS = "SELECT COALESCE(json_extract(r.data,'$.incoming.id'),'') FROM review_queue r WHERE COALESCE(json_extract(r.data,'$.stagedIncoming'),(json_extract(r.data,'$.incoming.sources[0].type')='local' AND json_type(r.data,'$.incoming.sources[0].storedPath')='text' AND NOT EXISTS(SELECT 1 FROM json_each(r.data,'$.incoming.sources') s WHERE json_extract(s.value,'$.type') IN ('jellyfin','plex','emby'))),0)=1"
+VISIBLE_ITEM_CLAUSE = f'd.item_id NOT IN ({STAGED_REVIEW_IDS})'
 
 
 def normalized(value):
@@ -55,8 +58,42 @@ def migration_statements():
     return tuple(result)
 
 
+def card_counts(item):
+    """Count playback families and editions, including a standard fallback."""
+    versions={version['id'] for version in item.get('versions',[]) if isinstance(version,dict) and version.get('id')}
+    default=next((version['id'] for version in item.get('versions',[]) if isinstance(version,dict) and version.get('id')),'standard')
+    versions=versions or {default}
+    playback=set();editions=set();files_by_version={};physical_versions=set()
+    for source in item.get('sources',[]):
+        kind=source.get('type');version=source.get('versionId') or default
+        if kind in ('local','digital'):playback.add('local')
+        elif kind in ('jellyfin','plex','emby','demo'):playback.add(kind)
+        if version not in versions:continue
+        if kind=='physical':
+            physical_versions.add(version)
+            release=source.get('physicalReleaseId') or (source.get('label',''),source.get('edition',''))
+            editions.add(('physical',version,release))
+        elif kind in ('local','digital'):
+            editions.add(('files',version));files_by_version.setdefault(version,[]).append(source)
+    version_labels={version['id']:version.get('label') or 'Standard or unknown edition' for version in item.get('versions',[]) if isinstance(version,dict) and version.get('id')}
+    sources=item.get('sources',[])
+    for source in sources:
+        if source.get('type') not in ('jellyfin','plex','emby','demo'):continue
+        version=source.get('versionId') or default
+        label=version_labels.get(version,'Standard or unknown edition')
+        explicit=str(source.get('edition') or '').strip()
+        files=files_by_version.get(version,[])
+        if files and (not explicit or edition_key(explicit)==edition_key(label) or any(edition_key(row.get('edition'))==edition_key(explicit) for row in files)):continue
+        physical=version in physical_versions
+        standard=bool(re.fullmatch(r'(?:standard(?: or unknown edition)?|unknown(?: edition)?|\d{3,4}p|4k|uhd|hd)',label,re.I))
+        name=explicit or (label if not physical and not standard else 'Standard')
+        editions.add(('connected',edition_key(name)))
+    return {'sources':len(playback),'editions':max(1,len(editions))}
+
+
 def compact(item):
     result={k:item[k] for k in ('id','title','kind','year','digitalPlatforms','releaseDate','poster','backdrop','genre','customGenres','collectionGenres','collectionGenreBasis','duration','progress','favorite','addedAt','sample','artist','metadataPreference','activity') if k in item}
+    if 'digitalPlatforms' in result:result['digitalPlatforms']=[{key:value for key,value in record.items() if key!='purchaseRequestDigest'} for record in result['digitalPlatforms']]
     result['description']=str(item.get('description') or '')[:400]
     # Rich source snapshots, episode/track trees and edition details are fetched
     # only when a title is opened. All physical rows remain for accurate rules.
@@ -68,6 +105,7 @@ def compact(item):
         if source.get('type') not in types or source.get('id')==item.get('metadataPreference'):
             selected.append({k:source[k] for k in fields if k in source});types.add(source.get('type'))
     result['sources'] += selected
+    result['cardCounts']=card_counts(item)
     result['browseSummary']=True
     return result
 
@@ -86,9 +124,9 @@ class LibraryBrowse:
         stamp=refs.stamp if ready else None
         with self.lock, self.box.db() as db:
             projection=db.execute("SELECT value FROM browse_state WHERE key='projection'").fetchone()
-            if not projection or projection[0]!='4':
+            if not projection or projection[0]!='7':
                 db.execute('INSERT OR IGNORE INTO browse_dirty SELECT id FROM items')
-                db.execute("INSERT INTO browse_state VALUES('projection','4') ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+                db.execute("INSERT INTO browse_state VALUES('projection','7') ON CONFLICT(key) DO UPDATE SET value=excluded.value")
             prior=db.execute("SELECT value FROM browse_state WHERE key='packs'").fetchone()
             if ready and (not prior or prior[0]!=stamp):
                 db.execute('INSERT OR IGNORE INTO browse_dirty SELECT id FROM items')
@@ -156,19 +194,17 @@ class LibraryBrowse:
     def _cards(self,db,ids):
         result=[]
         for identifier in ids:
-            row=db.execute('SELECT data FROM items WHERE id=?',(identifier,)).fetchone()
+            row=db.execute('SELECT data FROM browse_documents WHERE item_id=?',(identifier,)).fetchone()
             if not row:continue
-            item=self.box.public_item(json.loads(row[0]))
-            stored=db.execute('SELECT data FROM browse_documents WHERE item_id=?',(identifier,)).fetchone()
-            card=compact(item)
-            if stored:
-                projected=json.loads(stored[0])
-                card.update({k:projected[k] for k in ('collectionGenres','collectionGenreBasis','activity') if k in projected})
+            card=json.loads(row[0])
+            # Resolve launch URLs from the persisted, bounded projection. Rich
+            # catalogs, galleries and mounted files are checked on item open.
+            card['sources']=self.box.public_item(card,include_gallery=False)['sources']
             result.append(card)
         return result
 
-    def page(self,options):
-        ready=self.prepare()
+    def page(self,options,*,prepared=None,ids_only=False):
+        ready=self.prepare() if prepared is None else prepared
         try:limit=int(options.get('limit',60));offset=int(options.get('offset',0))
         except (TypeError,ValueError):raise ValueError('Invalid library page.')
         if not 1<=limit<=100 or not 0<=offset<=1000000:raise ValueError('Invalid library page.')
@@ -220,7 +256,7 @@ class LibraryBrowse:
             if shelf:
                 rows=db.execute('SELECT d.item_id,p.location,SUM('+copies_expression+') copies'+base_query+' GROUP BY d.item_id,p.location ORDER BY p.location,'+order+' LIMIT ? OFFSET ?',(*params,limit,offset)).fetchall()
             else:rows=db.execute('SELECT d.item_id'+base_query+' ORDER BY '+order+' LIMIT ? OFFSET ?',(*params,limit,offset)).fetchall()
-            ids=list(dict.fromkeys(r['item_id'] for r in rows));items=self._cards(db,ids)
+            ids=list(dict.fromkeys(r['item_id'] for r in rows));items=[{'id':identifier} for identifier in ids] if ids_only else self._cards(db,ids)
             groups=[]
             if shelf:
                 for row in rows:

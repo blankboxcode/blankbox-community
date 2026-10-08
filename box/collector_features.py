@@ -71,5 +71,10 @@ def digital_platforms(rows, item):
                        'url': external_url(row.get('url', ''), optional=True),
                        'notes': text(row.get('notes', ''), 1000, 'the digital platform notes'),
                        'physicalSourceId': source_id})
+        for key, maximum in {'format':120,'edition':120,'receivedAt':10,'preorderId':80,'wishlistId':80,'purchaseRequestDigest':64,'purchasePrice':20,'purchaseCurrency':3,'purchaseVendor':250,'purchaseDate':10,'purchaseNotes':4000}.items():
+            if key in row:
+                result[-1][key] = text(row[key], maximum, key)
+        prior=next((saved for saved in item.get('digitalPlatforms',[]) if saved.get('id')==identifier),{})
+        if prior.get('purchaseRequestDigest'):result[-1]['purchaseRequestDigest']=prior['purchaseRequestDigest']
         seen.add(identifier)
     return result

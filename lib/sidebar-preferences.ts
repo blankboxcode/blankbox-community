@@ -1,4 +1,4 @@
-export const sidebarDestinations = ['library', 'collections', 'physical', 'movie', 'tv', 'music', 'photo', 'book', 'comic', 'game'] as const;
+export const sidebarDestinations = ['library', 'collections', 'physical', 'movie', 'tv', 'music', 'photo', 'book', 'comic', 'game', 'collecting', 'preorders'] as const;
 export type SidebarDestination = (typeof sidebarDestinations)[number];
 
 export function normalizeSidebarOrder(value: readonly string[] | undefined): SidebarDestination[] {

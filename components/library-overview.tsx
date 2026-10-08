@@ -32,12 +32,13 @@ export function LibraryOverview({ state, summary, onOpen }: {
     <div className="library-count-banner">
       <div className="library-count-lead"><strong>{summary.titles}</strong><span>{summary.titles === 1 ? 'title' : 'titles'} in your library</span></div>
       <div className="library-count-details">
-        <span><strong>{summary.digitalOrConnectedSources}</strong>Titles with digital access</span>
+        <span><strong>{summary.digitalOrConnectedSources}</strong>Titles with files or connected apps</span>
         <span><strong>{state.physicalInventory.packages}</strong>Physical items</span>
         <span><strong>{state.physicalInventory.copies}</strong>Owned copies</span>
       </div>
     </div>
     {state.mode==='box'&&<button className="library-collections-link" onClick={()=>onOpen('collections')}>Browse collections <span>{state.collectionCount??state.collections?.length??0} saved · Series, genres & seasonal favorites</span><ChevronRight size={18}/></button>}
+    <p className="muted small">TV counts series; music counts albums. Seasons, episodes, tracks and additional copies do not add titles. Separate library entries count separately.</p>
     <div className="library-destinations">
       <button data-tv className="library-shelf-hub" onClick={() => onOpen('physical')} aria-label="Open Physical Media">
         <span className="source-icon lavender"><Disc3 size={28}/></span>
@@ -50,7 +51,7 @@ export function LibraryOverview({ state, summary, onOpen }: {
         {categories.map(({ id, label, kinds, icon: Icon }) => {
           const count = id === 'library' ? summary.titles : kinds.reduce((total, kind) => total + (counts[kind] || 0), 0);
           return <button data-tv className={`library-category kind-${id}`} key={id} onClick={() => onOpen(id)} aria-label={`Open ${label}, ${count} ${count === 1 ? 'title' : 'titles'}`}>
-            <Icon size={22}/><span><strong>{label}</strong><small>{count} {count === 1 ? 'title' : 'titles'}</small></span><ChevronRight size={17}/>
+            <Icon size={22}/><span><strong>{label}</strong><small>{count} {id === 'music' ? count === 1 ? 'album' : 'albums' : id === 'tv' ? count === 1 ? 'show' : 'shows' : count === 1 ? 'title' : 'titles'}</small></span><ChevronRight size={17}/>
           </button>;
         })}
       </nav>

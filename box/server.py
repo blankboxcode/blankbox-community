@@ -9,7 +9,7 @@ from contextlib import contextmanager, nullcontext
 from runtime_lock import RuntimeLock
 from file_safety import inside, digest, safe_file, open_linked_file, safe_destination, fingerprint, checked_copy, reject_links
 from refresh_schedule import RefreshSchedule
-from library_browse import LibraryBrowse, VISIBLE_ITEM_CLAUSE, migration_statements, normalized as browse_normalized
+from library_browse import LibraryBrowse, VISIBLE_ITEM_CLAUSE, STAGED_REVIEW_IDS, migration_statements, normalized as browse_normalized, compact
 from folder_monitor import monitor_source
 from pathlib import Path
 from datetime import datetime, timezone
@@ -27,11 +27,14 @@ from bundled_metadata import install_bundled_packs
 from edition_completion import edition_status, reference_summary
 from commerce import clean_store_preferences, store_links, store_sources
 from tv_catalog import jellyfin_tree, plex_tree
+from music_catalog import album_tracks
+from provider_matching import clear_match as clear_provider_match, consolidation_groups, identifiers as provider_work_identifiers, split_title as split_provider_title, key as provider_key
 from catalog_details import clean_details, clean_facts, provider_details, provider_identifiers
 from barcodes import barcode_keys, clean_barcode
 from oidc import OIDC, configuration as oidc_configuration
 from artwork_gallery import ArtworkGallery, MAX_TITLE_IMAGES
 from collector_features import service_preferences, digital_platforms
+from preorders import check_revision, get_preorder, positive_quantity, preorder_detail, preorder_page, public_preorder, request_key, save_preorder, store_preorder
 from artwork import MAX_ARTWORK_BYTES, artwork_hash, artwork_url, folder_cover_paths, jpeg_size
 from library_collections import activity_history, activity_states, hidden_organization, labels as collection_labels, list_collections, merge_collection_activity, record_activity, restore_organization, save_collection
 
@@ -44,7 +47,7 @@ def product_version():
     return '0.0.0-development'
 
 VERSION = product_version()
-CATALOG_SCHEMA_VERSION = 22
+CATALOG_SCHEMA_VERSION = 23
 MEDIA_RIGHTS_TERMS_VERSION = '1'
 KINDS = {'movie','tv','music','photo','home-video','book','comic','game','file'}
 VIDEO_KINDS = {'movie','tv','home-video'}
@@ -69,7 +72,7 @@ COMMON_GAME_PLATFORMS = (
     'Sega Genesis / Mega Drive','Sega Dreamcast','Sega Saturn','Sega Game Gear',
     'PC (Windows)','Atari 2600',
 )
-SIDEBAR_SHORTCUTS = ('movie','tv','music','photo','book','comic','game')
+SIDEBAR_SHORTCUTS = ('movie','tv','music','photo','book','comic','game','collecting','preorders')
 HOME_ROWS = ('recently-added','recently-released','movies','tv','music','photos','books','comics','games')
 SIDEBAR_DESTINATIONS = ('library','collections','physical',*SIDEBAR_SHORTCUTS)
 HOME_HERO_MODES = ('watch','music','book','photos','comics','games')
@@ -168,7 +171,7 @@ def clean_title(name): return re.sub(r'[._]+',' ',Path(name).stem).strip() or Pa
 def title_key(value): return re.sub(r'[^a-z0-9]+','',str(value).lower())
 def inventory_title_key(value): return ''.join(character for character in str(value).casefold() if character.isalnum())
 def title_tokens(value):
-    title=EDITION_PATTERN.sub('',str(value or ''))
+    title=EDITION_PATTERN.sub('',split_provider_title(value)[0])
     title=re.sub(r'[\s([{.-](?:18|19|20|21)\d{2}[\s)\]}.-]*$','',title)
     return tuple(dict.fromkeys(word for word in re.findall(r'[^\W_]+',title.casefold()) if len(word)>=2 and not word.isdigit() and word not in {'the','and','for','with','from','of','an','to'}))[:12]
 def sync_item_search(db,item,include_tokens=True):
@@ -413,6 +416,8 @@ def physical_records(item,source):
         'addedAt':source.get('addedAt') or item.get('addedAt',now()),
         'recordVersion':1,
     }
+    for key in ('preorderId','purchasePrice','purchaseCurrency','purchaseVendor','purchaseDate','receivedAt'):
+        if source.get(key):copy[key]=source[key]
     content={
         'id':content_id,
         'releaseId':release_id,
@@ -609,6 +614,12 @@ CATALOG_MIGRATIONS = (
     (22, 'optional-oidc-owner-identities', (
         'CREATE TABLE oidc_identities(issuer TEXT NOT NULL,subject TEXT NOT NULL,profile_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,PRIMARY KEY(issuer,subject),UNIQUE(profile_id))',
     )),
+    (23, 'preorders-and-delivery-receipts', (
+        'CREATE TABLE IF NOT EXISTS preorders(id TEXT PRIMARY KEY,data TEXT NOT NULL)',
+        "CREATE INDEX IF NOT EXISTS preorders_status ON preorders(json_extract(data,'$.status'))",
+        'CREATE TABLE IF NOT EXISTS preorder_receipts(id TEXT PRIMARY KEY,preorder_id TEXT NOT NULL REFERENCES preorders(id) ON DELETE CASCADE,data TEXT NOT NULL)',
+        'CREATE INDEX IF NOT EXISTS preorder_receipts_order ON preorder_receipts(preorder_id)',
+    )),
 )
 
 def apply_catalog_migrations(db):
@@ -649,8 +660,8 @@ class SQLiteCatalogRepository:
         db=sqlite3.connect(self.path,timeout=20);db.row_factory=sqlite3.Row;db.execute('PRAGMA foreign_keys=ON');return db
     def list_items(self):
         with self.connect() as db:return [json.loads(row[0]) for row in db.execute('SELECT data FROM items ORDER BY rowid DESC')]
-    def save_item(self,item,*,reviewed_metadata_id=None,reviewed_physical_source_id=None,evidence_namespace=None,evidence_value=None,pack_repository=None,retired_release_ids=(),retired_content_ids=()):
-        with self.connect() as db:
+    def save_item(self,item,*,reviewed_metadata_id=None,reviewed_physical_source_id=None,evidence_namespace=None,evidence_value=None,pack_repository=None,retired_release_ids=(),retired_content_ids=(),connection=None,apply_reviewed_details=True):
+        with (nullcontext(connection) if connection is not None else self.connect()) as db:
             new_item=db.execute('SELECT 1 FROM items WHERE id=?',(item['id'],)).fetchone() is None
             db.execute('INSERT INTO items VALUES(?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data',(item['id'],json.dumps(item)))
             if sync_physical_ownership(db,item):db.execute('UPDATE items SET data=? WHERE id=?',(json.dumps(item),item['id']))
@@ -690,7 +701,7 @@ class SQLiteCatalogRepository:
                 else:confirm_entity(db,'item',item['id'],reviewed_metadata_id)
                 # Work matching fills catalog facts. An edition-only match on
                 # an existing item keeps its separate household detail choice.
-                if new_item or entity['level']=='work':
+                if apply_reviewed_details and (new_item or entity['level']=='work'):
                     apply_reference_details(db,item,entity['work_id'] if entity['level']=='release' else reviewed_metadata_id)
     def load_item(self,identifier):
         with self.connect() as db:row=db.execute('SELECT data FROM items WHERE id=?',(identifier,)).fetchone()
@@ -1081,20 +1092,32 @@ class Box(ArtworkGallery):
         if not key:return []
         incoming_kind=incoming.get('kind')
         allowed_kinds={'movie','tv'} if compatible_kinds and incoming_kind in ('movie','tv') else {incoming_kind}
-        with self.db() as db:pending_ids={json.loads(row[0]).get('incoming',{}).get('id') for row in db.execute('SELECT data FROM review_queue')}
-        candidates=[]
-        for item in self.items():
-            if item.get('id')==exclude or item.get('id') in pending_ids or item.get('kind') not in allowed_kinds or work_title_key(item.get('title'))!=key:continue
+        kinds=','.join('?' for _ in allowed_kinds)
+        with self.db() as db:
+            rows=db.execute("SELECT i.data FROM item_search s JOIN items i ON i.id=s.item_id WHERE s.title_key=? AND s.kind IN ("+kinds+") AND s.item_id NOT IN (SELECT COALESCE(json_extract(data,'$.incoming.id'),'') FROM review_queue) LIMIT 100",(key,*sorted(allowed_kinds))).fetchall()
+            identifiers=sorted(provider_work_identifiers(incoming))
+            if identifiers:
+                terms=' OR '.join('(m.namespace=? AND m.value=?)' for _ in identifiers)
+                rows+=db.execute("SELECT DISTINCT i.data FROM metadata_identifiers m JOIN metadata_links l ON l.entity_id=m.entity_id AND l.target_type='item' JOIN items i ON i.id=l.target_id JOIN item_search s ON s.item_id=i.id WHERE ("+terms+") AND s.kind IN ("+kinds+") AND s.item_id NOT IN (SELECT COALESCE(json_extract(data,'$.incoming.id'),'') FROM review_queue) LIMIT 100",(*[value for pair in identifiers for value in pair],*sorted(allowed_kinds))).fetchall()
+        candidates=[];seen=set()
+        for row in rows:
+            item=json.loads(row[0])
+            if item.get('id')==exclude or item['id'] in seen:continue
+            seen.add(item['id'])
+            if incoming_kind=='music' and item.get('artist') and incoming.get('artist') and provider_key(item['artist'])!=provider_key(incoming['artist']):continue
+            reason=clear_provider_match(item,incoming)
+            if not reason and work_title_key(item.get('title'))!=key:continue
             same_year=bool(item.get('year') and incoming.get('year') and item.get('year')==incoming.get('year'))
             year_conflict=bool(item.get('year') and incoming.get('year') and item.get('year')!=incoming.get('year'))
-            if year_conflict:continue
-            candidate=self.public_item(item);candidate['matchConfidence']='high' if same_year else 'review'
+            if year_conflict and not reason:continue
+            candidate=dict(item);candidate['matchConfidence']='high' if reason or same_year else 'review'
+            candidate['clearProviderMatch']=bool(reason)
             same_kind=item.get('kind')==incoming_kind
-            candidate['matchReason']='Same title, year, and media type' if same_year and same_kind else ('Same title and media type; confirm the year or edition' if same_kind else 'Same video title; confirm whether this disc belongs with the movie or TV record')
+            candidate['matchReason']=reason or ('Same title, year, and media type' if same_year and same_kind else ('Same title and media type; confirm the year or edition' if same_kind else 'Same video title; confirm whether this disc belongs with the movie or TV record'))
             candidate['metadataScore']=sum(1 for field in METADATA_FIELDS if item.get(field) not in (None,''))+min(len(str(item.get('description','')))//200,5)
             candidates.append(candidate)
-        candidates.sort(key=lambda item:(item['matchConfidence']!='high',-item['metadataScore'],item.get('addedAt','')))
-        return candidates[:12]
+        candidates.sort(key=lambda item:(not item['clearProviderMatch'],item['matchConfidence']!='high',-item['metadataScore'],item.get('addedAt','')))
+        return [{**self.public_item(item),**{key:item[key] for key in ('matchConfidence','matchReason','metadataScore','clearProviderMatch')}} for item in candidates[:12]]
     def provider_owner(self,provider_item_id,provider):
         if not provider_item_id:return None
         for item in self.items():
@@ -1110,10 +1133,68 @@ class Box(ArtworkGallery):
                 if source.get('type')==provider and source.get('providerItemId'):
                     owners[source['providerItemId']]=item['id']
         return owners,titles
-    def merge_items(self,target_id,incoming,metadata_policy='keep',edition_policy='same',allow_kind_change=False,force_metadata=False):
+    def normalize_connected_editions(self,item):
+        changed=False;ensure_item_model(item)
+        for source in item.get('sources',[]):
+            if source.get('type') not in ('jellyfin','plex','emby'):continue
+            snapshot=source.get('metadataSnapshot') or {}
+            previous=snapshot.get('title') or item.get('title','')
+            title,edition=split_provider_title(previous,source.get('edition'))
+            if edition and source.get('edition')!=edition:source['edition']=edition;changed=True
+            if snapshot.get('title') and title!=snapshot['title']:
+                if item.get('metadataPreference')==source.get('id') and item.get('title')==snapshot['title'] and 'title' not in item.get('metadataOverrides',[]):item['title']=title
+                snapshot['title']=title;changed=True
+            if edition:
+                current=next((version for version in item['versions'] if version['id']==source.get('versionId')),item['versions'][0])
+                if provider_key(current.get('label'))!=provider_key(edition):
+                    version=next((version for version in item['versions'] if provider_key(version.get('label'))==provider_key(edition)),None)
+                    if not version:
+                        version={**current,'id':uuid.uuid4().hex,'label':edition};item['versions'].append(version)
+                    source['versionId']=version['id'];changed=True
+        return changed
+    def consolidate_existing_provider_items(self,job=None):
+        items=self.items()
+        with self.db() as db:
+            reviews=[json.loads(raw) for (raw,) in db.execute('SELECT data FROM review_queue')]
+        pending={identifier for review in reviews for identifier in [review.get('incoming',{}).get('id'),*review.get('candidateIds',[])]}
+        for item in items:
+            if item['id'] not in pending and self.normalize_connected_editions(item):self.put_item(item)
+        items=[item for item in items if item['id'] not in pending]
+        groups=consolidation_groups(items);merged=0
+        if job:job.update(total=sum(len(group)-1 for group in groups),done=0);self.save_job(job)
+        indexed={item['id']:item for item in items}
+        for group in groups:
+            # Capacity limits are review boundaries, not reasons to fail an
+            # otherwise independent catalog reconciliation.
+            if sum(len(indexed[identifier].get('digitalPlatforms',[])) for identifier in group)>30:continue
+            with self.db() as db:
+                if db.execute('SELECT COUNT(*) FROM artwork_gallery WHERE item_id IN ('+','.join('?' for _ in group)+')',group).fetchone()[0]>MAX_TITLE_IMAGES:continue
+            def priority(identifier):
+                item=indexed[identifier]
+                return (-len(item.get('metadataOverrides',[])),-sum(source.get('type') in ('physical','local') for source in item.get('sources',[])),-int(bool(item.get('favorite'))),item.get('addedAt',''),identifier)
+            keeper=min(group,key=priority)
+            for identifier in group:
+                if identifier==keeper:continue
+                target=self.get_item(keeper);incoming=self.get_item(identifier)
+                if not clear_provider_match(target,incoming):continue
+                self.merge_items(keeper,incoming,'keep','same',preserve_editions=True);merged+=1
+                if job:job.update(done=merged,consolidated=merged,message=f'Consolidated {merged} clear connected-title matches');self.save_job(job)
+        return merged
+    def start_provider_consolidation(self,force=False):
+        with self.db() as db:receipt=db.execute("SELECT value FROM browse_state WHERE key='provider-matching'").fetchone()
+        if not force and receipt and receipt[0]=='1':return {'ok':True,'alreadyChecked':True}
+        def worker(job):
+            count=self.consolidate_existing_provider_items(job)
+            with self.db() as db:db.execute("INSERT INTO browse_state VALUES('provider-matching','1') ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+            job['message']=f'{count} clear connected-title matches consolidated. Uncertain records remain separate.'
+        return self.start_job('provider-consolidation',worker)
+    def merge_items(self,target_id,incoming,metadata_policy='keep',edition_policy='same',allow_kind_change=False,force_metadata=False,preserve_editions=False):
         if metadata_policy not in ('keep','incoming'):raise Problem('Choose how Blank Box should handle metadata.')
         if edition_policy not in ('same','new'):raise Problem('Choose whether this is the same or a new edition.')
         target=self.get_item(target_id);ensure_item_model(target);ensure_item_model(incoming)
+        original_details=metadata_snapshot(target)
+        if incoming.get('favorite'):target['favorite']=True
+        if preserve_editions and not target.get('progress') and incoming.get('progress'):target['progress']=incoming['progress']
         if target.get('kind')!=incoming.get('kind') and (not allow_kind_change or not compatible_media_kinds(target.get('kind'),incoming.get('kind'))):raise Problem('These records are different kinds of media. Match movies, TV, and video together; keep books, music, photos, and unrelated files separate.')
         overrides=set(target.get('metadataOverrides',[]));provenance=target.setdefault('metadataProvenance',{})
         provider_sources=[source for source in incoming.get('sources',[]) if source.get('type') in ('jellyfin','plex') and source.get('providerItemId')]
@@ -1122,6 +1203,13 @@ class Box(ArtworkGallery):
             provider_source['metadataSnapshot']=metadata_snapshot(incoming)
         matching_source=next((source for source in target['sources'] if provider_source and source.get('type')==provider_source.get('type') and source.get('providerItemId')==provider_source.get('providerItemId')),None)
         preferred=target.get('metadataPreference')
+        if provider_source and metadata_policy=='keep' and preferred is None:
+            existing_providers=[source for source in target['sources'] if source.get('type') in ('jellyfin','plex') and source.get('metadataSnapshot')]
+            if len(existing_providers)==1:
+                existing=existing_providers[0];snapshot=existing['metadataSnapshot']
+                known=[field for field in METADATA_FIELDS if field not in overrides and target.get(field) not in (None,'')]
+                if known and all(target.get(field)==snapshot.get(field) for field in known):
+                    preferred=target['metadataPreference']=existing['id']
         if provider_source and preferred in (None,'blankbox') and not target.get('blankboxMetadataSnapshot'):
             target['blankboxMetadataSnapshot']=metadata_snapshot(target)
         can_apply=force_metadata or preferred is None or preferred in ((matching_source or provider_source or {}).get('id'),)
@@ -1136,7 +1224,6 @@ class Box(ArtworkGallery):
         if force_metadata:target['metadataOverrides']=sorted(overrides)
         if incoming.get('customGenres'):
             target['customGenres']=collection_labels(list(dict.fromkeys(target.get('customGenres',[])+incoming['customGenres'])))
-        incoming_version=incoming['versions'][0]
         if len(target.get('digitalPlatforms',[]))+len(incoming.get('digitalPlatforms',[]))>30:raise Problem('Merging these titles would exceed 30 digital platform records. Keep the records separate or review them first.')
         if incoming.get('digitalPlatforms'):
             target['digitalPlatforms']=list(target.get('digitalPlatforms',[]))
@@ -1144,17 +1231,18 @@ class Box(ArtworkGallery):
                 record=dict(record)
                 if any(saved.get('id')==record.get('id') for saved in target['digitalPlatforms']):record['id']=uuid.uuid4().hex
                 target['digitalPlatforms'].append(record)
-        if edition_policy=='new':
-            label=incoming_version.get('label') or edition_label(incoming.get('title'))
-            if label==STANDARD_EDITION:label='Additional edition'
-            version={'id':uuid.uuid4().hex,'label':label}
-            for field in ('year','duration','notes'):
-                if field in incoming_version:version[field]=incoming_version[field]
-            target['versions'].append(version);version_id=version['id']
-        else:
+        version_map={}
+        for incoming_version in incoming['versions']:
             wanted=incoming_version.get('label',STANDARD_EDITION)
-            version=next((version for version in target['versions'] if version.get('label')==wanted),target['versions'][0])
-            version_id=version['id']
+            existing=next((version for version in target['versions'] if provider_key(version.get('label'))==provider_key(wanted)),None)
+            if edition_policy=='same' and existing:
+                version_map[incoming_version['id']]=existing['id'];continue
+            if edition_policy=='same' and wanted==STANDARD_EDITION and not preserve_editions:
+                version_map[incoming_version['id']]=target['versions'][0]['id'];continue
+            label=wanted if wanted!=STANDARD_EDITION or preserve_editions else 'Additional edition'
+            identifier=incoming_version['id'] if preserve_editions and all(version['id']!=incoming_version['id'] for version in target['versions']) else uuid.uuid4().hex
+            version={**incoming_version,'id':identifier,'label':label}
+            target['versions'].append(version);version_map[incoming_version['id']]=version['id']
         def source_identity(source):
             identity=(source.get('type'),source.get('providerItemId'),source.get('sha256'),source.get('sourceId'),source.get('path'),source.get('location'))
             if source.get('type')=='physical':identity+=(source.get('ownedCopyId') or source.get('id'),source.get('packageContentId'))
@@ -1167,7 +1255,7 @@ class Box(ArtworkGallery):
                 for key,value in source.items():
                     if key not in ('id','versionId','storedPath','sha256'):current[key]=value
                 continue
-            source=dict(source);source['id']=source.get('id') or uuid.uuid4().hex;source['versionId']=version_id
+            source=dict(source);source['id']=source.get('id') or uuid.uuid4().hex;source['versionId']=version_map.get(source.get('versionId'),target['versions'][0]['id'])
             target['sources'].append(source);existing_keys.add(identity)
         if provider_source and metadata_policy=='keep' and target.get('metadataPreference') is None:
             target['metadataPreference']='blankbox'
@@ -1175,7 +1263,11 @@ class Box(ArtworkGallery):
             selected=next((source for source in target['sources'] if source.get('type')==provider_source.get('type') and source.get('providerItemId')==provider_source.get('providerItemId')),None)
             if selected:target['metadataPreference']=selected['id']
         selected=next((source for source in target['sources'] if source.get('id')==target.get('metadataPreference') and source.get('type') in ('jellyfin','plex')),None)
-        if selected:apply_metadata_choice(target,selected)
+        if selected and not (provider_source and metadata_policy=='keep'):apply_metadata_choice(target,selected)
+        if provider_source and metadata_policy=='keep':
+            # Keeping details also keeps their provenance, even if the saved
+            # provider snapshot has changed since the displayed facts were set.
+            for field,value in original_details.items():target[field]=value
         if metadata_policy=='incoming' or not target.get('metadataMatch'):
             target['metadataMatch']={'type':'library','itemId':incoming.get('id','incoming'),'matchedAt':now()}
         ensure_item_model(target)
@@ -1227,6 +1319,8 @@ class Box(ArtworkGallery):
                         relationship='merged-work' if link['relationship']=='local-work' else link['relationship']
                         db.execute('INSERT OR IGNORE INTO metadata_links VALUES(?,?,?,?,?)',('item',target['id'],link['entity_id'],relationship,link['confirmed_at']))
                 db.execute('UPDATE catalog_item_aliases SET item_id=? WHERE item_id=?',(target['id'],incoming_id))
+                for old_version,new_version in version_map.items():
+                    db.execute('UPDATE activity_events SET version_id=? WHERE item_id=? AND version_id=?',(new_version,incoming_id,old_version))
                 merge_collection_activity(db,target['id'],incoming_id)
                 db.execute("DELETE FROM metadata_artwork_refs WHERE entity_id=? AND source='owner-upload'",(local_work_id(incoming_id),))
                 db.execute('DELETE FROM items WHERE id=?',(incoming_id,))
@@ -1382,19 +1476,25 @@ class Box(ArtworkGallery):
                 opened.close()
             except (OSError,ValueError):continue
         raise Problem('That artwork file is unavailable.',404)
-    def queue_review(self,incoming,candidates,source):
-        review={'id':uuid.uuid4().hex,'source':source,'incoming':incoming,'candidateIds':[candidate['id'] for candidate in candidates],'createdAt':now()}
+    def queue_review(self,incoming,candidates,source,*,staged=False):
+        review={'id':uuid.uuid4().hex,'source':source,'incoming':incoming,'candidateIds':[candidate['id'] for candidate in candidates],'createdAt':now(),'stagedIncoming':staged}
         with self.db() as db:db.execute('INSERT INTO review_queue VALUES(?,?)',(review['id'],json.dumps(review)))
         return review
-    def reviews(self,limit=100):
+    def reviews(self,limit=25):
+        def preview(item):
+            result=compact(item)
+            result['description']=str(item.get('description') or '')[:5000]
+            result['versions']=item.get('versions',[])[:10]
+            result['sources']=sorted(result['sources'],key=lambda source:source.get('id')!=item.get('metadataPreference'))[:6]
+            return result
         with self.db() as db:rows=list(db.execute('SELECT data FROM review_queue ORDER BY rowid LIMIT ?',(limit,)))
         result=[]
         for row in rows:
             review=json.loads(row[0]);incoming=review.get('incoming',{});candidates=[]
             for candidate_id in review.get('candidateIds',[]):
-                try:candidates.append(self.public_item(self.get_item(candidate_id)))
+                try:candidates.append(preview(self.get_item(candidate_id)))
                 except Problem:pass
-            result.append({'id':review['id'],'source':review.get('source','import'),'createdAt':review.get('createdAt'),'incoming':self.public_item(incoming),'candidates':candidates})
+            result.append({'id':review['id'],'source':review.get('source','import'),'createdAt':review.get('createdAt'),'incoming':preview(incoming),'candidates':candidates})
         return result
     def resolve_review(self,review_id,policy,target_id=None):
         if policy not in ('keep','incoming','new-version','separate'):raise Problem('Choose how to handle this match.')
@@ -1402,7 +1502,9 @@ class Box(ArtworkGallery):
         if not row:raise Problem('That review is no longer available.',404)
         review=json.loads(row[0]);incoming=review['incoming'];candidate_ids=review.get('candidateIds',[])
         if policy=='separate':
-            try:self.get_item(incoming['id'])
+            incoming['providerMatchPolicy']='separate'
+            try:
+                saved=self.get_item(incoming['id']);saved['providerMatchPolicy']='separate';self.put_item(saved)
             except Problem:self.put_item(incoming)
             result=self.get_item(incoming['id'])
         else:
@@ -1414,8 +1516,7 @@ class Box(ArtworkGallery):
                 chosen=next((source['id'] for source in result.get('sources',[]) if source.get('type')==provider_type and source.get('providerItemId')==next((value.get('providerItemId') for value in incoming.get('sources',[]) if value.get('type')==provider_type),None)),None)
                 if policy=='incoming' and chosen:
                     self.choose_metadata_source(result['id'],chosen);result=self.get_item(result['id'])
-                elif policy=='keep':
-                    self.choose_metadata_source(result['id'],'blankbox');result=self.get_item(result['id'])
+
         with self.db() as db:db.execute('DELETE FROM review_queue WHERE id=?',(review_id,))
         return {'ok':True,'item':self.public_item(result)}
     def resolve_all_reviews(self,policy):
@@ -1426,6 +1527,30 @@ class Box(ArtworkGallery):
             try:self.resolve_review(review_id,policy);resolved+=1
             except Problem:skipped+=1
         return {'ok':True,'resolved':resolved,'skipped':skipped}
+    def resolve_reviews_job(self,policy,review_id=None,target_id=None):
+        if policy not in ('keep','incoming','new-version','separate') or not review_id and policy=='separate':
+            raise Problem('Choose how to handle this match.')
+        with self.db() as db:
+            ids=[row[0] for row in db.execute('SELECT id FROM review_queue ORDER BY rowid')]
+            if review_id:
+                row=db.execute('SELECT data FROM review_queue WHERE id=?',(review_id,)).fetchone()
+                if not row:raise Problem('That review is no longer available.',404)
+                if policy!='separate' and target_id and target_id not in json.loads(row[0]).get('candidateIds',[]):
+                    raise Problem('Choose one of the proposed matching records.')
+                ids=[review_id]
+        def worker(job):
+            job.update(total=len(ids),resolved=0,skipped=0,message='Saving match choices')
+            self.save_job(job)
+            for index,identifier in enumerate(ids):
+                try:
+                    self.resolve_review(identifier,policy,target_id if review_id else None)
+                    job['resolved']+=1
+                except Problem as error:
+                    job['skipped']+=1
+                    job['errors'].append(error.message)
+                job.update(done=index+1,message=f"Saved {job['resolved']} of {len(ids)} match choices")
+                if (index+1)%10==0 or index+1==len(ids):self.save_job(job)
+        return self.start_job('match-review',worker)
     def physical_candidates(self,title,kind):
         # A DVD or Blu-ray may contain a movie or a TV release. Suggest both video
         # categories here, but leave the final consolidation to the owner.
@@ -1454,13 +1579,14 @@ class Box(ArtworkGallery):
                     if item.get('kind') in kinds:matches[item_id]=item
         ordered=sorted(matches.values(),key=lambda item:(item['id'] not in linked,item.get('kind')!=kind,item.get('year')!=year,item['id']))
         return {'results':[self.public_item(item) for item in ordered[:25]],'moreMatches':len(ordered)>25 or len(linked)>25}
-    def public_item(self,item):
+    def public_item(self,item,*,include_gallery=True):
         public={key:item[key] for key in ('id','title','kind','year','digitalPlatforms','releaseDate','description','poster','backdrop','genre','customGenres','duration','catalogDetails','versions','sources','bytes','mime','progress','favorite','addedAt','sample','backup','backupVerifiedAt','credit','metadataMatch','metadataOverrides','metadataProvenance','metadataPreference','blankboxMetadataSnapshot','artist','trackCount','discImport') if key in item}
-        public['artworkGallery']=self.gallery_artwork(item['id'])
+        if 'digitalPlatforms' in public:public['digitalPlatforms']=[{key:value for key,value in record.items() if key!='purchaseRequestDigest'} for record in public['digitalPlatforms']]
+        if include_gallery:public['artworkGallery']=self.gallery_artwork(item['id'])
         public['sources']=[]
         for source in item.get('sources',[]):
             if not isinstance(source,dict):continue
-            visible={key:value for key,value in source.items() if key not in ('storedPath','sha256','rootIdentity','sourceMtimeNs')}
+            visible={key:value for key,value in source.items() if key not in ('storedPath','sha256','rootIdentity','sourceMtimeNs','purchaseRequestDigest')}
             visible['itemId']=item['id']
             if source.get('type') in ('local','digital') and source.get('id'):
                 # A merge can retain a file source whose stored URL names the
@@ -1867,6 +1993,206 @@ class Box(ArtworkGallery):
         item.setdefault('sources',[]).append(source)
         if year and not item.get('year'):item['year']=year
         self.save_reviewed_physical(item,source,data);self.remember_physical_choices(source);return {'ok':True,'item':self.public_item(item)}
+    def purchased_item_details(self,order,data):
+        details=data.get('newItemDetails',{})
+        allowed={'title','year','format','edition','packaging','releaseLabel','season','barcode','location','condition','creator','publisher','platform','volume','issue','region','catalogNumber','genre','description'}
+        if not isinstance(details,dict) or any(key not in allowed for key in details):raise ValueError('Review the new media details.')
+        if details and data.get('itemId'):raise ValueError('New media details cannot replace an existing title.')
+        for key,limit in (('title',250),('genre',500),('description',5000)):
+            if key in details and (not isinstance(details[key],str) or len(details[key])>limit):raise ValueError('Check the new title details.')
+        if details.get('year') is not None and (isinstance(details['year'],bool) or not isinstance(details['year'],int) or not 1800<=details['year']<=2200):raise ValueError('Enter a valid release year.')
+        if order.get('year') and details.get('year') and order['year']!=details['year']:raise ValueError('The received title has a different release year from the order.')
+        return details
+
+    def add_digital_purchase(self,db,order,data,quantity,received_date,source_context,first_source_id):
+        """Record purchased access, without inventing files or physical ownership."""
+        details=self.purchased_item_details(order,data)
+        kind=order['kind'];year=details.get('year',order.get('year'));title=details.get('title',order['title']).strip()
+        if not title:raise ValueError('Enter a title.')
+        item_id=data.get('itemId')
+        if item_id:
+            row=db.execute('SELECT data FROM items WHERE id=?',(item_id,)).fetchone()
+            if not row:raise ValueError('The chosen library title is no longer available.')
+            item=json.loads(row[0]);ensure_item_model(item)
+            if item['kind']!=kind or year and item.get('year') and item['year']!=year:raise ValueError('Choose a title with the same media type and release year.')
+        else:
+            if data.get('createSeparate') is not True:raise ValueError('Choose an existing title or confirm a new title.')
+            item={'id':uuid.uuid4().hex,'title':title,'kind':kind,'year':year,'sources':[],'versions':[],'addedAt':now(),'description':details.get('description',''),'genre':details.get('genre','')}
+        record={'platform':data.get('digitalPlatform',order.get('digitalPlatform','')),'format':data.get('digitalFormat',order.get('digitalFormat','')),
+                'edition':order.get('edition',''),'url':data.get('digitalUrl',order.get('digitalUrl','')),'status':'purchased','physicalSourceId':'','notes':'','receivedAt':received_date,**source_context}
+        for field,key in (('price','purchasePrice'),('currency','purchaseCurrency'),('vendor','purchaseVendor'),('dateOrdered','purchaseDate'),('notes','purchaseNotes')):
+            if order.get(field):record[key]=order[field]
+        added=[{**record,'id':first_source_id if index==0 and first_source_id else uuid.uuid4().hex} for index in range(quantity)]
+        item['digitalPlatforms']=digital_platforms(item.get('digitalPlatforms',[])+added,item)
+        metadata_id=data.get('metadataEntityId')
+        if metadata_id:
+            if not isinstance(metadata_id,str) or len(metadata_id)>120:raise ValueError('Review the selected metadata title.')
+            if metadata_id.startswith('pack:'):metadata_id=self.metadata_packs.materialize(db,metadata_id)
+            entity=db.execute('SELECT kind,level,year FROM metadata_entities WHERE id=?',(metadata_id,)).fetchone()
+            if not entity or entity['level']!='work' or entity['kind']!=kind or year and entity['year'] and year!=entity['year']:raise ValueError('Choose matching title metadata for this digital purchase.')
+        apply_details=data.get('applyMetadataDetails',not bool(item_id))
+        if not isinstance(apply_details,bool):raise ValueError('Choose whether to apply the reviewed title details.')
+        self.catalog.save_item(item,connection=db,reviewed_metadata_id=metadata_id,pack_repository=self.metadata_packs,apply_reviewed_details=apply_details)
+        return item,added
+
+    def add_purchased_copies(self,db,order,data,quantity,received_date,source_context,first_source_id=None):
+        """Add reviewed ownership inside the caller's transaction."""
+        release_type=data.get('releaseType',order.get('releaseType','physical'))
+        if release_type not in ('physical','digital'):raise ValueError('Choose a physical or digital release.')
+        if release_type=='digital':return self.add_digital_purchase(db,order,data,quantity,received_date,source_context,first_source_id)
+        details=self.purchased_item_details(order,data)
+        physical={**order,'format':data.get('format',order['format']),'releaseLabel':order['label'],
+                  'barcode':data.get('barcode',order['barcode']),'platform':data.get('platform',order['platform']),
+                  'location':data.get('location',''),'condition':data.get('condition','')}
+        physical.update(details)
+        physical.pop('releaseDate',None)
+        title,kind,year,source=self.physical_data(physical)
+        item_id=data.get('itemId')
+        if item_id:
+            if not isinstance(item_id,str):raise ValueError('Choose a library title.')
+            row=db.execute('SELECT data FROM items WHERE id=?',(item_id,)).fetchone()
+            if not row:raise ValueError('The chosen library title is no longer available.')
+            item=json.loads(row[0]);ensure_item_model(item)
+            if item['kind']!=kind or year and item.get('year') and year!=item['year']:raise ValueError('Choose a title with the same media type and release year.')
+        else:
+            if data.get('createSeparate') is not True:raise ValueError('Choose an existing library title or confirm a new title.')
+            item={'id':uuid.uuid4().hex,'title':title,'kind':kind,'year':year,'sources':[],'versions':[],
+                  'addedAt':now(),'description':details.get('description',''),'genre':details.get('genre','')}
+        version_id=data.get('versionId')
+        if version_id:
+            if not isinstance(version_id,str):raise ValueError('Choose a physical edition.')
+            matches=[entry for entry in item['sources'] if entry.get('type')=='physical' and entry.get('versionId')==version_id]
+            if not matches or any(entry.get('packageType')=='box-set' or entry.get('label')!=source['label'] or
+                (entry.get('edition') or '').casefold()!=(source.get('edition') or '').casefold() or
+                entry.get('season')!=source.get('season') or any((entry.get(key) or '')!=(source.get(key) or '') for key in ('barcode','region','platform','releaseLabel')) for entry in matches):
+                raise ValueError('This preorder differs from that physical edition. Choose a new edition.')
+            releases={entry['physicalReleaseId'] for entry in matches}
+            if len(releases)!=1:raise ValueError('This edition contains different physical releases. Receive into a new edition.')
+            source['physicalReleaseId']=matches[0]['physicalReleaseId']
+        else:
+            if item_id and data.get('newEdition') is not True:raise ValueError('Choose an existing physical edition or confirm a new edition.')
+            version_id=uuid.uuid4().hex
+            version={'id':version_id,'label':physical_edition_label(source['label'],source.get('edition')),
+                     'format':source['label'],'edition':source.get('edition') or None}
+            if source.get('season'):
+                version['season']=source['season'];version['label']+=' · '+season_label(source['season'])
+            if year:version['year']=year
+            item['versions'].append(version)
+            source['physicalReleaseId']=uuid.uuid4().hex
+        source.update(versionId=version_id,receivedAt=received_date,**source_context)
+        for field,key in (('price','purchasePrice'),('currency','purchaseCurrency'),('vendor','purchaseVendor'),('dateOrdered','purchaseDate'),('notes','notes')):
+            if order.get(field):source[key]=order[field]
+        added=[]
+        for index in range(quantity):
+            copy={**source,'id':first_source_id if index==0 and first_source_id else uuid.uuid4().hex};item['sources'].append(copy);added.append(copy)
+        metadata_id=data.get('metadataEntityId')
+        if metadata_id is not None:
+            if not isinstance(metadata_id,str) or not 1<=len(metadata_id)<=120:raise ValueError('Review the selected metadata title.')
+            if metadata_id.startswith('pack:'):metadata_id=self.metadata_packs.materialize(db,metadata_id)
+            entity=db.execute('SELECT * FROM metadata_entities WHERE id=?',(metadata_id,)).fetchone()
+            if not entity or entity['kind']!=kind:raise ValueError('The selected metadata has a different media type or is unavailable.')
+            work=db.execute('SELECT * FROM metadata_entities WHERE id=?',(entity['work_id'],)).fetchone() if entity['level']=='release' else entity
+            if not work or any(known and work['year'] and known!=work['year'] for known in (year,item.get('year'))):raise ValueError('The selected metadata has a different title release year. Review the destination.')
+            if entity['level']=='release' and (entity['format']!=source['label'] or (entity['edition'] or '').casefold()!=(source.get('edition') or '').casefold() or (entity['season'] or None)!=source.get('season')):
+                raise ValueError('The selected reference edition differs from this physical copy.')
+        apply_details=data.get('applyMetadataDetails',not bool(item_id))
+        if not isinstance(apply_details,bool):raise ValueError('Choose whether to apply the reviewed title details.')
+        self.catalog.save_item(item,connection=db,reviewed_metadata_id=metadata_id,reviewed_physical_source_id=added[0]['id'],
+                               evidence_namespace='isbn' if kind=='book' else 'upc-ean',evidence_value=source.get('barcode'),
+                               pack_repository=self.metadata_packs,apply_reviewed_details=apply_details)
+        settings=json.loads(db.execute('SELECT data FROM settings WHERE id=1').fetchone()[0])
+        for key,value in (('physicalLocations',source.get('location')),('gamePlatforms',source.get('platform'))):
+            if value and not any(saved.casefold()==value.casefold() for saved in settings.get(key,[])):
+                settings.setdefault(key,[]).append(value);settings[key].sort(key=str.casefold)
+        db.execute('UPDATE settings SET data=? WHERE id=1',(json.dumps(settings),))
+        return item,added
+
+    def receive_preorder(self,data):
+        """Commit delivery history and owned copies together, including safe retries."""
+        identifier=data.get('id')
+        if data.get('confirmId')!=identifier:raise Problem('Confirm the preorder before receiving it.')
+        try:
+            receipt_id='receipt-'+request_key(data.get('requestId'))
+            quantity=positive_quantity(data.get('quantity'),100)
+            received_date=data.get('receivedDate')
+            from datetime import date
+            if not isinstance(received_date,str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}',received_date):raise ValueError('Enter the delivery date.')
+            received_date=date.fromisoformat(received_date).isoformat()
+            if not 1800<=int(received_date[:4])<=2200:raise ValueError('Enter a valid delivery date.')
+            receipt_input={key:data.get(key) for key in ('id','quantity','receivedDate','itemId','versionId','createSeparate','newEdition','format','barcode','location','condition','platform')}
+            receipt_input.update({key:data[key] for key in ('metadataEntityId','applyMetadataDetails','releaseType','digitalPlatform','digitalFormat','digitalUrl','newItemDetails') if key in data})
+            signature=hashlib.sha256(json.dumps(receipt_input,sort_keys=True).encode()).hexdigest()
+            with self.db() as db:
+                db.execute('BEGIN IMMEDIATE')
+                order=get_preorder(db,identifier)
+                previous=db.execute('SELECT preorder_id,data FROM preorder_receipts WHERE id=?',(receipt_id,)).fetchone()
+                if previous:
+                    receipt=json.loads(previous['data'])
+                    if previous['preorder_id']!=identifier or receipt['inputDigest']!=signature:raise ValueError('This delivery confirmation was already used. Reopen the preorder.')
+                    return {'ok':True,'preorder':public_preorder(order),'receipt':{key:value for key,value in receipt.items() if key!='inputDigest'},'alreadyReceived':True}
+                check_revision(order,data)
+                if order['status'] in ('received','cancelled'):raise ValueError('Only an outstanding preorder can be received.')
+                if quantity>order['quantity']-order['receivedQuantity']:raise ValueError('That quantity exceeds the copies still awaiting delivery.')
+                release_type=data.get('releaseType',order.get('releaseType','physical'))
+                if order['receivedQuantity'] and release_type!=order.get('releaseType','physical'):raise ValueError('This order already has deliveries of a different release type. Create another order for that release.')
+                item,added=self.add_purchased_copies(db,order,data,quantity,received_date,{'preorderId':identifier})
+                receipt={'id':receipt_id,'preorderId':identifier,'itemId':item['id'],'quantity':quantity,'receivedAt':received_date,
+                         'createdAt':now(),'sourceIds':[copy['id'] for copy in added if copy.get('type')=='physical'],'copyIds':[copy['ownedCopyId'] for copy in added if copy.get('ownedCopyId')],
+                         'purchaseRecordIds':[copy['id'] for copy in added if copy.get('status')=='purchased'],'releaseType':release_type,
+                         'receivedDetails':{'format':added[0].get('label',added[0].get('format','')),'platform':added[0].get('platform',''),'location':added[0].get('location',''),'edition':added[0].get('edition','')},
+                         'orderDetails':{key:order[key] for key in ('title','kind','year','format','edition','season','label','vendor','price','currency','dateOrdered','orderNumber','trackingNumber','notes','releaseDate','expectedDeliveryDate','platform','region','barcode','releaseType','digitalPlatform','digitalFormat','digitalUrl') if key in order},
+                         'inputDigest':signature}
+                db.execute('INSERT INTO preorder_receipts(id,preorder_id,data) VALUES(?,?,?)',(receipt_id,identifier,json.dumps(receipt)))
+                if not order['receivedQuantity']:
+                    order['releaseType']=release_type
+                    if release_type=='digital':
+                        order.update(digitalPlatform=added[0]['platform'],digitalFormat=added[0].get('format',''),digitalUrl=added[0]['url'])
+                order.update(receivedQuantity=order['receivedQuantity']+quantity,revision=order['revision']+1,updatedAt=now())
+                store_preorder(db,order)
+            return {'ok':True,'preorder':public_preorder(order),'receipt':{key:value for key,value in receipt.items() if key!='inputDigest'},'item':self.public_item(item)}
+        except (ValueError,sqlite3.IntegrityError) as error:raise Problem(str(error)) from error
+    def receive_wishlist(self,data):
+        """Save a purchased wishlist item and remove its intention atomically."""
+        identifier=data.get('id')
+        if not isinstance(identifier,str) or not re.fullmatch(r'intent-[0-9a-f]{32}',identifier) or data.get('confirmId')!=identifier:raise Problem('Confirm the wishlist title before adding it.')
+        try:
+            first_source_id='wishlist-'+request_key(data.get('requestId'))
+            signature=hashlib.sha256(json.dumps({key:value for key,value in data.items() if key!='requestId'},sort_keys=True).encode()).hexdigest()
+            quantity=positive_quantity(data.get('quantity'),100)
+            from datetime import date
+            received_date=data.get('receivedDate')
+            if not isinstance(received_date,str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}',received_date):raise ValueError('Enter the purchase receipt date.')
+            received_date=date.fromisoformat(received_date).isoformat()
+            if not 1800<=int(received_date[:4])<=2200:raise ValueError('Enter a valid receipt date.')
+            with self.db() as db:
+                db.execute('BEGIN IMMEDIATE')
+                previous=db.execute('SELECT i.data FROM physical_source_links l JOIN items i ON i.id=l.item_id WHERE l.source_id=?',(first_source_id,)).fetchone()
+                if not previous:
+                    previous=db.execute("SELECT i.data FROM items i,json_each(i.data,'$.digitalPlatforms') p WHERE json_extract(p.value,'$.id')=? LIMIT 1",(first_source_id,)).fetchone()
+                if previous:
+                    item=json.loads(previous[0]);source=next(entry for entry in item['sources']+item.get('digitalPlatforms',[]) if entry.get('id')==first_source_id)
+                    if source.get('wishlistId')!=identifier or source.get('purchaseRequestDigest')!=signature:raise ValueError('This confirmation was already used. Reopen the wishlist.')
+                    return {'ok':True,'item':self.public_item(item),'alreadyAdded':True}
+                row=db.execute('SELECT title,kind,year,desired_format AS format,edition,season,work_id AS workId,release_id AS releaseId FROM collecting_targets WHERE id=?',(identifier,)).fetchone()
+                if not row:raise ValueError('This wishlist item is no longer available. Refresh the wishlist.')
+                target=dict(row)
+                if data.get('expectedTarget')!=target:raise ValueError('This wishlist item changed. Reopen it before adding copies.')
+                order={**target,'label':'','platform':'','barcode':'','region':''}
+                item,_=self.add_purchased_copies(db,order,data,quantity,received_date,{'wishlistId':identifier,'purchaseRequestDigest':signature},first_source_id)
+                remove_target(db,identifier)
+            return {'ok':True,'item':self.public_item(item)}
+        except (ValueError,sqlite3.IntegrityError) as error:raise Problem(str(error)) from error
+    def remove_preorder(self,data):
+        identifier=data.get('id')
+        if data.get('confirmId')!=identifier:raise Problem('Confirm the preorder to remove.')
+        try:
+            with self.db() as db:
+                db.execute('BEGIN IMMEDIATE')
+                order=get_preorder(db,identifier);check_revision(order,data)
+                if order['receivedQuantity'] and data.get('confirmHistory') is not True:raise ValueError('Confirm removal of this order and its delivery history. Received library copies are kept.')
+                db.execute('DELETE FROM preorders WHERE id=?',(identifier,))
+            return {'ok':True}
+        except ValueError as error:raise Problem(str(error)) from error
     def remove_physical(self,id,source):
         if not isinstance(source,dict) or source.get('type')!='physical':raise Problem('Choose a physical copy to remove.')
         item=self.get_item(id);sources=item.get('sources',[])
@@ -2091,6 +2417,7 @@ class Box(ArtworkGallery):
                 'localPlayback':{'supported':True,'configured':True,'directPlay':True,'transcoding':False},
                 'localMetadata':{'supported':True,'configured':True,'modelVersion':2},
                 'physicalCollection':{'supported':True,'configured':True,'modelVersion':1},
+                'preorders':{'supported':True,'configured':True,'modelVersion':1},
                 'managedImports':{'supported':True,'configured':bool(self.source_roots)},
                 'verifiedBackups':{'supported':True,'configured':bool(self.backup_root)},
                 'jellyfinCatalog':{'supported':True,'configured':bool(self.connection('jellyfin'))},
@@ -2110,7 +2437,7 @@ class Box(ArtworkGallery):
         for key,kinds in [('heroWatch',('movie','tv')),('heroMusic',('music',)),('heroBooks',('book',)),('heroPhotos',('photo','home-video')),('heroComics',('comic',)),('heroGames',('game',))]:
             if settings.get(key):options.extend({'kind':kind,'limit':5,'sort':hero_sort} for kind in kinds)
         if ready:
-            for value in options:ids.extend(item['id'] for item in self.browse.page(value)['items'])
+            for value in options:ids.extend(item['id'] for item in self.browse.page(value,prepared=ready,ids_only=True)['items'])
         with self.browse.lock,self.db() as db:
             items=self.browse._cards(db,list(dict.fromkeys(ids)))
             where=VISIBLE_ITEM_CLAUSE
@@ -2122,7 +2449,7 @@ class Box(ArtworkGallery):
             review_count=db.execute('SELECT COUNT(*) FROM review_queue').fetchone()[0]
         storage=shutil.disk_usage(self.data)
         physical=self.catalog.physical_inventory_summary()
-        return {'mode':'box','version':VERSION,'collectionPlanningAvailable':True,'pagedLibrary':True,'items':items,
+        return {'mode':'box','version':VERSION,'collectionPlanningAvailable':True,'preordersAvailable':True,'pagedLibrary':True,'items':items,
                 'summary':{'titles':totals[0],'physicalCopies':physical['copies'],'digitalOrConnectedSources':totals[1],'physicalFormats':physical['formats']},
                 'kindCounts':counts,'facets':facets,'collectionCount':collection_count,'collections':[],
                 'settings':settings,'physicalInventory':physical,'hiddenItems':hidden_count,'hiddenRecords':self.hidden_records(50),
@@ -2135,8 +2462,8 @@ class Box(ArtworkGallery):
         storage=shutil.disk_usage(self.data)
         with self.db() as db:
             review_count=db.execute('SELECT COUNT(*) FROM review_queue').fetchone()[0]
-            pending_ids={json.loads(row[0]).get('incoming',{}).get('id') for row in db.execute('SELECT data FROM review_queue')}
-        items=[self.public_item(item) for item in self.items() if item.get('id') not in pending_ids]
+            staged_ids={row[0] for row in db.execute(STAGED_REVIEW_IDS)}
+        items=[self.public_item(item) for item in self.items() if item.get('id') not in staged_ids]
         items=self.collection_references.genre_projection(items,self.collection_reference_mappings())
         with self.db() as db:
             activity=activity_states(db)
@@ -2144,7 +2471,7 @@ class Box(ArtworkGallery):
         for item in items:item['activity']=activity.get(item['id'],{'status':'not-started'})
         with self.state_lock:jobs=list(self.jobs.values())[::-1][:15]
         hidden_records=self.hidden_records()
-        return {'mode':'box','version':VERSION,'collectionPlanningAvailable':True,'collections':collections,'settings':self.get_settings(),'items':items,'physicalInventory':self.catalog.physical_inventory_summary(),'hiddenItems':len(hidden_records),'hiddenRecords':hidden_records,'reviews':self.reviews(),'reviewCount':review_count,'sources':[{'id':id,'name':p.name or str(p),'path':str(p),'available':p.is_dir()} for id,p in self.source_roots.items()],'jobs':jobs,'storage':{'total':storage.total,'used':storage.used,'free':storage.free},'backup':self.backup_info()}
+        return {'mode':'box','version':VERSION,'collectionPlanningAvailable':True,'preordersAvailable':True,'collections':collections,'settings':self.get_settings(),'items':items,'physicalInventory':self.catalog.physical_inventory_summary(),'hiddenItems':len(hidden_records),'hiddenRecords':hidden_records,'reviews':self.reviews(),'reviewCount':review_count,'sources':[{'id':id,'name':p.name or str(p),'path':str(p),'available':p.is_dir()} for id,p in self.source_roots.items()],'jobs':jobs,'storage':{'total':storage.total,'used':storage.used,'free':storage.free},'backup':self.backup_info()}
     def save_job(self,job):
         with self.state_lock:
             with self.db() as db:db.execute('INSERT INTO jobs VALUES(?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data',(job['id'],json.dumps(job)))
@@ -3265,7 +3592,7 @@ class Box(ArtworkGallery):
                             item=self.merge_items(target_id,item,metadata_policy,edition_policy);job['consolidated']+=1
                             if edition_policy=='new':job['newVersions']+=1
                         elif candidates and policy=='review' and not choice:
-                            self.queue_review(item,candidates,root.name or 'Folder import');job['reviewCount']+=1
+                            self.queue_review(item,candidates,root.name or 'Folder import',staged=True);job['reviewCount']+=1
                         local_source=next(source for source in item['sources'] if source.get('sha256')==sha)
                         known[sha]=(item,local_source)
                     with self.db() as db:
@@ -3497,9 +3824,12 @@ class Box(ArtworkGallery):
         except (TypeError,json.JSONDecodeError):return None
         return value if isinstance(value,dict) else None
     def jellyfin_item(self,entry,base):
+        if not isinstance(entry,dict) or entry.get('Type') not in ('Movie','Series','MusicAlbum'):return None
         jid=str(entry.get('Id',''))
         if not re.fullmatch(r'[a-zA-Z0-9-]{1,100}',jid):return None
-        source={'type':'jellyfin','label':'Jellyfin','providerItemId':jid,'url':base+'/web/#/details?id='+urllib.parse.quote(jid)}
+        source={'type':'jellyfin','label':'Jellyfin','providerType':entry['Type'],'providerItemId':jid,'url':base+'/web/#/details?id='+urllib.parse.quote(jid)}
+        qualities=sorted({str(stream.get('Height'))+'p' for media in entry.get('MediaSources',[]) if isinstance(media,dict) for stream in media.get('MediaStreams',[]) if isinstance(stream,dict) and stream.get('Type')=='Video' and type(stream.get('Height')) is int})
+        if qualities:source['quality']=' / '.join(qualities)
         source_added=provider_timestamp(entry.get('DateCreated'))
         if source_added:source['addedAt']=source_added
         item={'id':'jellyfin-'+jid,'title':str(entry.get('Name') or 'Untitled'),'kind':{'Series':'tv','MusicAlbum':'music'}.get(entry.get('Type'),'movie'),'year':entry.get('ProductionYear'),'description':str(entry.get('Overview',''))[:5000],'sources':[source],'addedAt':now(),'metadataProvider':'Jellyfin'}
@@ -3518,8 +3848,18 @@ class Box(ArtworkGallery):
         if details:item['catalogDetails']=details
         identifiers=provider_identifiers(entry,'jellyfin',item['kind'])
         if identifiers:source['metadataIdentifiers']=identifiers
+        title,edition=split_provider_title(item['title'],entry.get('EditionTitle'))
+        if not edition:
+            for media in entry.get('MediaSources',[]):
+                if not isinstance(media,dict):continue
+                _,edition=split_provider_title(str(media.get('Path','')).rsplit('/',1)[-1])
+                if edition:break
+        item['title']=title
+        if edition:source['edition']=edition
         source['metadataSnapshot']=metadata_snapshot(item)
-        ensure_item_model(item);item['metadataPreference']=source['id'];return item
+        ensure_item_model(item)
+        if edition:item['versions'][0]['label']=edition
+        item['metadataPreference']=source['id'];return item
     def sync_saved_jellyfin(self,policy='review'):
         connection=self.connection('jellyfin')
         if not connection:raise Problem('Connect Jellyfin once in Settings before refreshing its catalog.')
@@ -3540,12 +3880,12 @@ class Box(ArtworkGallery):
                 if marker in refreshed:continue
                 if provider=='jellyfin':
                     if not re.fullmatch(r'[a-zA-Z0-9-]{1,100}',provider_id):raise Problem('This Jellyfin source is missing its item identifier. Sync the full catalog once to repair it.')
-                    params=urllib.parse.urlencode({'Ids':provider_id,'Fields':'Overview,ProductionYear,PremiereDate,DateCreated,People,Studios,Genres,ProviderIds','Limit':1})
+                    params=urllib.parse.urlencode({'Ids':provider_id,'Fields':'Overview,ProductionYear,PremiereDate,DateCreated,People,Studios,Genres,ProviderIds,MediaSources','Limit':1})
                     data=self.jelly_request(base+'/Items?'+params,key);entry=next((entry for entry in data.get('Items',[]) if str(entry.get('Id',''))==provider_id),None)
                     incoming=self.jellyfin_item(entry,base) if entry else None;label='Jellyfin'
                 else:
                     if not re.fullmatch(r'\d{1,20}',provider_id):raise Problem('This Plex source is missing its item identifier. Sync the full catalog once to repair it.')
-                    data=self.plex_request(base+'/library/metadata/'+provider_id,key);entry=next(iter(data.get('MediaContainer',{}).get('Metadata',[])),None)
+                    data=self.plex_request(base+'/library/metadata/'+provider_id+'?includeGuids=1',key);entry=next(iter(data.get('MediaContainer',{}).get('Metadata',[])),None)
                     incoming=self.plex_item(entry,base) if entry else None;label='Plex'
                 if not incoming:raise Problem(f'{label} no longer returned this item. The existing Blank Box record was left unchanged.',404)
                 item=self.merge_items(item['id'],incoming,'incoming','same',allow_kind_change=True);refreshed.append(marker)
@@ -3582,7 +3922,7 @@ class Box(ArtworkGallery):
             def pages(path):
                 rows=[];offset=0
                 while True:
-                    query=urllib.parse.urlencode({'X-Plex-Container-Start':offset,'X-Plex-Container-Size':500})
+                    query=urllib.parse.urlencode({'X-Plex-Container-Start':offset,'X-Plex-Container-Size':500,'includeGuids':1})
                     page=self.plex_request(base+path+'?'+query,key).get('MediaContainer',{})
                     chunk=page.get('Metadata',[]);rows.extend(chunk);offset+=len(chunk)
                     if not chunk or offset>=page.get('totalSize',offset):break
@@ -3602,6 +3942,60 @@ class Box(ArtworkGallery):
             attached['tvCatalog']=catalog
             db.execute('UPDATE items SET data=? WHERE id=?',(json.dumps(item),item['id']))
         return {'ok':True,'tvCatalog':catalog,'sourceId':source['id']}
+    def refresh_music_catalog(self,item_id,source_id):
+        item=self.get_item(item_id)
+        if item.get('kind')!='music':raise Problem('Choose an album to load tracks.')
+        source=next((row for row in item.get('sources',[]) if row.get('id')==source_id and row.get('type') in ('jellyfin','plex')),None)
+        if not source:raise Problem('That album source is no longer attached.',404)
+        provider=source['type'];provider_id=str(source.get('providerItemId',''))
+        pattern=r'[a-zA-Z0-9-]{1,100}' if provider=='jellyfin' else r'\d{1,20}'
+        if not re.fullmatch(pattern,provider_id):raise Problem('The connected album ID is invalid.')
+        connection=self.connection(provider)
+        if not connection:raise Problem(f'Reconnect {provider.title()} in Settings before loading tracks.')
+        base=str(connection.get('url','')).rstrip('/');key=connection.get('key');rows=[];offset=0
+        while True:
+            if provider=='jellyfin':
+                query=urllib.parse.urlencode({'ParentId':provider_id,'Recursive':'true','IncludeItemTypes':'Audio','SortBy':'ParentIndexNumber,IndexNumber,SortName','SortOrder':'Ascending','StartIndex':offset,'Limit':200})
+                page=self.jelly_request(base+'/Items?'+query,key);chunk=page.get('Items',[]);total=page.get('TotalRecordCount')
+            else:
+                query=urllib.parse.urlencode({'X-Plex-Container-Start':offset,'X-Plex-Container-Size':200})
+                page=self.plex_request(base+'/library/metadata/'+provider_id+'/children?'+query,key).get('MediaContainer',{})
+                chunk=page.get('Metadata',[]);total=page.get('totalSize')
+            if not isinstance(chunk,list) or len(chunk)>200:raise Problem('The connected album returned an invalid track page.',502)
+            rows.extend(chunk);offset+=len(chunk)
+            if len(rows)>2000:raise Problem('This album exceeds the supported 2,000-track view.')
+            if not chunk or isinstance(total,int) and offset>=total or total is None and len(chunk)<200:break
+            if offset>=2000:raise Problem('This album exceeds the supported 2,000-track view.')
+        catalog=album_tracks(rows,provider,provider_id);catalog['updatedAt']=now()
+        with self.db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            current=db.execute('SELECT data FROM items WHERE id=?',(item_id,)).fetchone()
+            if not current:raise Problem('That album is no longer in the library.',404)
+            item=json.loads(current[0])
+            attached=next((row for row in item.get('sources',[]) if row.get('id')==source_id and row.get('type')==provider and str(row.get('providerItemId'))==provider_id),None)
+            if not attached or item.get('kind')!='music':raise Problem('That album source changed while tracks were loading.',409)
+            attached['musicCatalog']=catalog
+            db.execute('UPDATE items SET data=? WHERE id=?',(json.dumps(item),item_id))
+        return {'ok':True,'musicCatalog':catalog,'sourceId':source_id}
+
+    def connected_child_playback_url(self,item_id,source_id,child_id):
+        item=self.get_item(item_id)
+        source=next((row for row in item.get('sources',[]) if row.get('id')==source_id and row.get('type') in ('jellyfin','plex')),None)
+        if not source:raise Problem('That connected source is no longer attached.',404)
+        children=(source.get('musicCatalog') or {}).get('tracks',[]) if item.get('kind')=='music' else [episode for season in (source.get('tvCatalog') or {}).get('seasons',[]) for episode in season.get('episodes',[])] if item.get('kind')=='tv' else []
+        if not any(row.get('providerItemId')==child_id for row in children):raise Problem('That track or episode is not in the saved source catalog. Refresh it before opening.',404)
+        provider=source['type'];connection=self.connection(provider)
+        if not connection:raise Problem(f'Reconnect {provider.title()} in Settings before opening this source.',404)
+        base=str(connection.get('url','')).rstrip('/')
+        parsed=urllib.parse.urlparse(base)
+        if parsed.scheme not in ('http','https') or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
+            raise Problem('Reconnect the service using its server address in Settings.',400)
+        if provider=='plex':
+            if not re.fullmatch(r'\d{1,20}',child_id):raise Problem('The Plex catalog ID is invalid.',404)
+            return plex_details_url(base,self.plex_identity(base,connection.get('key','')),child_id)
+        if not re.fullmatch(r'[a-zA-Z0-9-]{1,100}',child_id):raise Problem('The Jellyfin catalog ID is invalid.',404)
+        return base+'/web/index.html#!/details?id='+urllib.parse.quote(child_id,safe='')
+
     def sync_jellyfin(self,url,key,policy='review'):
         parsed=urllib.parse.urlparse(url)
         if parsed.scheme not in ('http','https') or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:raise Problem('Use a valid Jellyfin address without credentials, query, or fragment.')
@@ -3609,45 +4003,56 @@ class Box(ArtworkGallery):
         if policy not in ('review','keep','incoming','new-version','separate'):raise Problem('Choose how matching Jellyfin records should be handled.')
         base=url.rstrip('/')
         def worker(job):
-            settings=self.get_settings();settings['jellyfinUrl']=base
             with self.db() as db:hidden_ids={row[0] for row in db.execute('SELECT id FROM hidden_items')}
-            collected=[];offset=0
+            collected=[];seen=set();offset=0
             while True:
-                params=urllib.parse.urlencode({'Recursive':'true','IncludeItemTypes':'Movie,Series,MusicAlbum','Fields':'Overview,ProductionYear,PremiereDate,DateCreated,People,Studios,Genres,ProviderIds,ChildCount','StartIndex':offset,'Limit':200})
+                params=urllib.parse.urlencode({'Recursive':'true','IncludeItemTypes':'Movie,Series,MusicAlbum','Fields':'Overview,ProductionYear,PremiereDate,DateCreated,People,Studios,Genres,ProviderIds,ChildCount,MediaSources','StartIndex':offset,'Limit':200})
                 data=self.jelly_request(base+'/Items?'+params,key)
                 entries=data.get('Items',[])
                 for entry in entries:
                     item=self.jellyfin_item(entry,base)
-                    if not item or item['id'] in hidden_ids:continue
-                    collected.append(item)
+                    if not item or item['id'] in hidden_ids or item['id'] in seen:continue
+                    collected.append(item);seen.add(item['id'])
                 offset+=len(entries)
                 job.update(total=int(data.get('TotalRecordCount',offset)),done=offset,message=f'Read {offset} Jellyfin items');self.save_job(job)
                 if not entries or offset>=data.get('TotalRecordCount',offset):break
                 if offset>50000:raise ValueError('This Jellyfin library exceeds the V1 sync limit.')
             with self.db() as db:
+                db.execute('BEGIN IMMEDIATE')
+                settings=json.loads(db.execute('SELECT data FROM settings WHERE id=1').fetchone()[0]);settings['jellyfinUrl']=base
                 db.execute('INSERT INTO connections VALUES(?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data',('jellyfin',json.dumps({'url':base,'key':key})))
                 db.execute('UPDATE settings SET data=? WHERE id=1',(json.dumps(settings),))
             job.update(consolidated=0,newVersions=0,reviewCount=0,added=0,refreshed=0)
             owners,titles=self.provider_sync_index('jellyfin')
             for incoming in collected:
+                if policy=='separate':incoming['providerMatchPolicy']='separate'
                 provider_id=incoming['sources'][0].get('providerItemId');owner_id=owners.get(provider_id)
                 if owner_id:
-                    refreshed=self.merge_items(owner_id,incoming,'incoming','same',allow_kind_change=True);job['refreshed']+=1
+                    refreshed=self.merge_items(owner_id,incoming,'incoming','same',allow_kind_change=True,preserve_editions=True);job['refreshed']+=1
+                    if policy=='separate':refreshed['providerMatchPolicy']='separate';self.put_item(refreshed)
                     with self.db() as db:already_pending=any(json.loads(row[0]).get('incoming',{}).get('id')==refreshed['id'] for row in db.execute('SELECT data FROM review_queue'))
-                    if already_pending:continue
-                    if not any(item_id!=refreshed['id'] for item_id in titles.get((refreshed.get('kind'),work_title_key(refreshed.get('title'))),())):continue
+                    if already_pending or len(titles.get((refreshed.get('kind'),work_title_key(refreshed.get('title'))),set())-{refreshed['id']})==0:continue
                     candidates=self.match_candidates(refreshed,exclude=refreshed['id'])
                     if not candidates or policy=='separate':continue
-                    if policy=='review':self.queue_review(refreshed,candidates,'Jellyfin');job['reviewCount']+=1;continue
-                    self.merge_items(candidates[0]['id'],refreshed,'incoming' if policy=='incoming' else 'keep','new' if policy=='new-version' else 'same');job['consolidated']+=1
+                    clear=[candidate for candidate in candidates if candidate.get('clearProviderMatch')]
+                    if policy=='review' and len(clear)!=1:self.queue_review(refreshed,candidates,'Jellyfin');job['reviewCount']+=1;continue
+                    if policy=='review':candidates=clear
+                    joined=self.merge_items(candidates[0]['id'],refreshed,'incoming' if policy=='incoming' else 'keep','new' if policy=='new-version' else 'same',preserve_editions=True);job['consolidated']+=1
+                    for source in joined['sources']:
+                        if source.get('type')==incoming['sources'][0]['type'] and source.get('providerItemId'):owners[source['providerItemId']]=joined['id']
                     if policy=='new-version':job['newVersions']+=1
                     continue
                 candidates=self.match_candidates(incoming)
                 if not candidates or policy=='separate':
                     self.put_item(incoming);job['added']+=1;owners[provider_id]=incoming['id'];titles.setdefault((incoming.get('kind'),work_title_key(incoming.get('title'))),set()).add(incoming['id']);continue
-                if policy=='review':self.queue_review(incoming,candidates,'Jellyfin');job['reviewCount']+=1;continue
-                self.merge_items(candidates[0]['id'],incoming,'incoming' if policy=='incoming' else 'keep','new' if policy=='new-version' else 'same');job['consolidated']+=1
+                clear=[candidate for candidate in candidates if candidate.get('clearProviderMatch')]
+                if policy=='review' and len(clear)!=1:self.queue_review(incoming,candidates,'Jellyfin');job['reviewCount']+=1;continue
+                if policy=='review':candidates=clear
+                joined=self.merge_items(candidates[0]['id'],incoming,'incoming' if policy=='incoming' else 'keep','new' if policy=='new-version' else 'same',preserve_editions=True);job['consolidated']+=1
+                for source in joined['sources']:
+                    if source.get('type')==incoming['sources'][0]['type'] and source.get('providerItemId'):owners[source['providerItemId']]=joined['id']
                 if policy=='new-version':job['newVersions']+=1
+            if policy!='separate':job['consolidated']+=self.consolidate_existing_provider_items()
             job['message']=f"{job['added']} new · {job['consolidated']} consolidated · {job['newVersions']} new editions · {job['refreshed']} refreshed · {job['reviewCount']} awaiting review. Playback opens Jellyfin."
         return self.start_job('jellyfin',worker)
     def jelly_request(self,url,key,binary=False):
@@ -3689,11 +4094,13 @@ class Box(ArtworkGallery):
         machine_id=self.plex_identity(base,connection.get('key',''))
         return plex_details_url(base,machine_id,provider_id)
     def plex_item(self,entry,base,machine_id=None):
-        if not isinstance(entry,dict):return None
+        if not isinstance(entry,dict) or entry.get('type') not in ('movie','show','album'):return None
         provider_id=str(entry.get('ratingKey',''))
         if not re.fullmatch(r'\d{1,20}',provider_id):return None
         plex_type=str(entry.get('type','')).lower();kind={'show':'tv','album':'music'}.get(plex_type,'movie')
-        source={'type':'plex','label':'Plex','providerItemId':provider_id,'url':plex_details_url(base,machine_id,provider_id) if machine_id else base+'/web/index.html'}
+        source={'type':'plex','label':'Plex','providerType':plex_type,'providerItemId':provider_id,'url':plex_details_url(base,machine_id,provider_id) if machine_id else base+'/web/index.html'}
+        qualities=sorted({str(media.get('videoResolution')) for media in entry.get('Media',[]) if isinstance(media,dict) and media.get('videoResolution')})
+        if qualities:source['quality']=' / '.join(qualities)
         source_added=provider_timestamp(entry.get('addedAt'))
         if source_added:source['addedAt']=source_added
         item={'id':'plex-'+provider_id,'title':str(entry.get('title') or 'Untitled'),'kind':kind,'year':entry.get('year'),'description':str(entry.get('summary',''))[:5000],'sources':[source],'addedAt':now(),'metadataProvider':'Plex'}
@@ -3711,8 +4118,20 @@ class Box(ArtworkGallery):
         if details:item['catalogDetails']=details
         identifiers=provider_identifiers(entry,'plex',item['kind'])
         if identifiers:source['metadataIdentifiers']=identifiers
+        title,edition=split_provider_title(item['title'],entry.get('editionTitle'))
+        if not edition:
+            for media in entry.get('Media',[]):
+                if not isinstance(media,dict):continue
+                for part in media.get('Part',[]):
+                    if isinstance(part,dict):_,edition=split_provider_title(str(part.get('file','')).rsplit('/',1)[-1])
+                    if edition:break
+                if edition:break
+        item['title']=title
+        if edition:source['edition']=edition
         source['metadataSnapshot']=metadata_snapshot(item)
-        ensure_item_model(item);item['metadataPreference']=source['id'];return item
+        ensure_item_model(item)
+        if edition:item['versions'][0]['label']=edition
+        item['metadataPreference']=source['id'];return item
     def sync_saved_plex(self,policy='review'):
         connection=self.connection('plex')
         if not connection:raise Problem('Connect Plex once in Settings before refreshing its catalog.')
@@ -3724,45 +4143,64 @@ class Box(ArtworkGallery):
         if policy not in ('review','keep','incoming','new-version','separate'):raise Problem('Choose how matching Plex records should be handled.')
         base=url.rstrip('/')
         def worker(job):
-            settings=self.get_settings();settings['plexUrl']=base
             machine_id=self.plex_identity(base,key)
             with self.db() as db:hidden_ids={row[0] for row in db.execute('SELECT id FROM hidden_items')}
-            sections=self.plex_request(base+'/library/sections',key).get('MediaContainer',{}).get('Directory',[]);collected=[]
+            sections=self.plex_request(base+'/library/sections',key).get('MediaContainer',{}).get('Directory',[]);collected=[];seen=set()
             supported=[section for section in sections if section.get('type') in ('movie','show','artist')]
             for index,section in enumerate(supported):
                 section_key=str(section.get('key',''))
                 if not re.fullmatch(r'\d{1,20}',section_key):continue
-                suffix='/all'+('?type=9' if section.get('type')=='artist' else '')
-                entries=self.plex_request(base+'/library/sections/'+section_key+suffix,key).get('MediaContainer',{}).get('Metadata',[])
-                for entry in entries:
-                    item=self.plex_item(entry,base,machine_id)
-                    if item and item['id'] not in hidden_ids:collected.append(item)
+                offset=0
+                while True:
+                    query=urllib.parse.urlencode({'type':{'movie':1,'show':2,'artist':9}[section['type']],
+                                                 'X-Plex-Container-Start':offset,'X-Plex-Container-Size':500,'includeGuids':1})
+                    page=self.plex_request(base+'/library/sections/'+section_key+'/all?'+query,key).get('MediaContainer',{})
+                    entries=page.get('Metadata',[])
+                    for entry in entries:
+                        item=self.plex_item(entry,base,machine_id)
+                        if item and item['id'] not in hidden_ids and item['id'] not in seen:
+                            collected.append(item);seen.add(item['id'])
+                    offset+=len(entries)
+                    if not entries or offset>=page.get('totalSize',offset):break
+                    if offset>50000:raise ValueError('This Plex library exceeds the supported sync limit.')
                 job.update(total=len(supported),done=index+1,message=f"Read {len(collected)} Plex items from {index+1} of {len(supported)} libraries");self.save_job(job)
                 if len(collected)>50000:raise ValueError('This Plex library exceeds the V1 sync limit.')
             with self.db() as db:
+                db.execute('BEGIN IMMEDIATE')
+                settings=json.loads(db.execute('SELECT data FROM settings WHERE id=1').fetchone()[0]);settings['plexUrl']=base
                 db.execute('INSERT INTO connections VALUES(?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data',('plex',json.dumps({'url':base,'key':key,'machineIdentifier':machine_id})))
                 db.execute('UPDATE settings SET data=? WHERE id=1',(json.dumps(settings),))
             job.update(consolidated=0,newVersions=0,reviewCount=0,added=0,refreshed=0)
             owners,titles=self.provider_sync_index('plex')
             for incoming in collected:
+                if policy=='separate':incoming['providerMatchPolicy']='separate'
                 provider_id=incoming['sources'][0].get('providerItemId');owner_id=owners.get(provider_id)
                 if owner_id:
-                    refreshed=self.merge_items(owner_id,incoming,'incoming','same',allow_kind_change=True);job['refreshed']+=1
+                    refreshed=self.merge_items(owner_id,incoming,'incoming','same',allow_kind_change=True,preserve_editions=True);job['refreshed']+=1
+                    if policy=='separate':refreshed['providerMatchPolicy']='separate';self.put_item(refreshed)
                     with self.db() as db:already_pending=any(json.loads(row[0]).get('incoming',{}).get('id')==refreshed['id'] for row in db.execute('SELECT data FROM review_queue'))
-                    if already_pending:continue
-                    if not any(item_id!=refreshed['id'] for item_id in titles.get((refreshed.get('kind'),work_title_key(refreshed.get('title'))),())):continue
+                    if already_pending or len(titles.get((refreshed.get('kind'),work_title_key(refreshed.get('title'))),set())-{refreshed['id']})==0:continue
                     candidates=self.match_candidates(refreshed,exclude=refreshed['id'])
                     if not candidates or policy=='separate':continue
-                    if policy=='review':self.queue_review(refreshed,candidates,'Plex');job['reviewCount']+=1;continue
-                    self.merge_items(candidates[0]['id'],refreshed,'incoming' if policy=='incoming' else 'keep','new' if policy=='new-version' else 'same');job['consolidated']+=1
+                    clear=[candidate for candidate in candidates if candidate.get('clearProviderMatch')]
+                    if policy=='review' and len(clear)!=1:self.queue_review(refreshed,candidates,'Plex');job['reviewCount']+=1;continue
+                    if policy=='review':candidates=clear
+                    joined=self.merge_items(candidates[0]['id'],refreshed,'incoming' if policy=='incoming' else 'keep','new' if policy=='new-version' else 'same',preserve_editions=True);job['consolidated']+=1
+                    for source in joined['sources']:
+                        if source.get('type')==incoming['sources'][0]['type'] and source.get('providerItemId'):owners[source['providerItemId']]=joined['id']
                     if policy=='new-version':job['newVersions']+=1
                     continue
                 candidates=self.match_candidates(incoming)
                 if not candidates or policy=='separate':
                     self.put_item(incoming);job['added']+=1;owners[provider_id]=incoming['id'];titles.setdefault((incoming.get('kind'),work_title_key(incoming.get('title'))),set()).add(incoming['id']);continue
-                if policy=='review':self.queue_review(incoming,candidates,'Plex');job['reviewCount']+=1;continue
-                self.merge_items(candidates[0]['id'],incoming,'incoming' if policy=='incoming' else 'keep','new' if policy=='new-version' else 'same');job['consolidated']+=1
+                clear=[candidate for candidate in candidates if candidate.get('clearProviderMatch')]
+                if policy=='review' and len(clear)!=1:self.queue_review(incoming,candidates,'Plex');job['reviewCount']+=1;continue
+                if policy=='review':candidates=clear
+                joined=self.merge_items(candidates[0]['id'],incoming,'incoming' if policy=='incoming' else 'keep','new' if policy=='new-version' else 'same',preserve_editions=True);job['consolidated']+=1
+                for source in joined['sources']:
+                    if source.get('type')==incoming['sources'][0]['type'] and source.get('providerItemId'):owners[source['providerItemId']]=joined['id']
                 if policy=='new-version':job['newVersions']+=1
+            if policy!='separate':job['consolidated']+=self.consolidate_existing_provider_items()
             job['message']=f"{job['added']} new · {job['consolidated']} consolidated · {job['newVersions']} new editions · {job['refreshed']} refreshed · {job['reviewCount']} awaiting review. Playback opens Plex."
         return self.start_job('plex',worker)
     def plex_request(self,url,key,binary=False):
@@ -3777,8 +4215,9 @@ class Box(ArtworkGallery):
             return (data,response.headers.get_content_type()) if binary else json.loads(data)
     def action(self,data,profile_id='household',_exclusive=False):
         action=data.get('action')
-        if not _exclusive and action in ('collection-recommendation-save','metadata-pack-install-catalog','metadata-pack-install-bundled','metadata-pack-remove','metadata-pack-refresh-confirmed','consolidate-selected','consolidate-selected-many'):
+        if not _exclusive and action in ('preorder-receive','wishlist-receive','collection-recommendation-save','metadata-pack-install-catalog','metadata-pack-install-bundled','metadata-pack-remove','metadata-pack-refresh-confirmed','consolidate-selected','consolidate-selected-many'):
             with self.exclusive_operation():return self.action(data,profile_id,_exclusive=True)
+        if action=='consolidate-providers':return self.start_provider_consolidation(force=True)
         if action=='collection-recommendations':return self.collection_recommendations()
         if action=='collection-recommendations-approve':return self.approve_collection_recommendations(data.get('recommendationIds'))
         if action=='collection-recommendation-save':
@@ -3999,6 +4438,15 @@ class Box(ArtworkGallery):
                 else:self.metadata.unlink_confirmed(target_type,target_id,entity_id)
             except ValueError as error:raise Problem(str(error)) from error
             return {'ok':True,'links':self.metadata.links(target_type,target_id),**({'localEntityId':local_id} if entity_id.startswith('pack:') else {}),**({'item':self.public_item(item),'appliedFields':applied} if item else {})}
+        if action=='preorder-save':
+            try:
+                with self.db() as db:
+                    db.execute('BEGIN IMMEDIATE')
+                    return {'ok':True,'preorder':public_preorder(save_preorder(db,data,now()))}
+            except (ValueError,sqlite3.IntegrityError) as error:raise Problem(str(error)) from error
+        if action=='preorder-receive':return self.receive_preorder(data)
+        if action=='preorder-remove':return self.remove_preorder(data)
+        if action=='wishlist-receive':return self.receive_wishlist(data)
         if action=='collecting-add':
             with self.db() as db:
                 work_id=data.get('workId')
@@ -4088,6 +4536,7 @@ class Box(ArtworkGallery):
         if action=='plex':return self.sync_plex(str(data.get('url','')),data.get('key'),data.get('policy','review'))
         if action=='refresh-item':return self.refresh_item_sources(data.get('id'))
         if action=='tv-catalog-refresh':return self.refresh_tv_catalog(data.get('id'),data.get('sourceId'))
+        if action=='music-catalog-refresh':return self.refresh_music_catalog(data.get('id'),data.get('sourceId'))
         if action=='metadata-choice':
             if data.get('confirm') is not True:raise Problem('Review and confirm the metadata source first.')
             replace_edits=data.get('replaceEdits',False)
@@ -4105,8 +4554,13 @@ class Box(ArtworkGallery):
         if action=='artwork-remove':
             if data.get('confirm') is not True:raise Problem('Confirm removal of this local cover.')
             return self.remove_owner_artwork(data.get('id'))
-        if action=='resolve-review':return self.resolve_review(data.get('reviewId'),data.get('policy'),data.get('targetId'))
+        if action=='resolve-review':
+            if data.get('background') is True:
+                if not isinstance(data.get('reviewId'),str) or not data['reviewId']:raise Problem('Choose a match to review.')
+                return self.resolve_reviews_job(data.get('policy'),data['reviewId'],data.get('targetId'))
+            return self.resolve_review(data.get('reviewId'),data.get('policy'),data.get('targetId'))
         if action=='resolve-all-reviews':
+            if data.get('background') is True:return self.resolve_reviews_job(data.get('policy'))
             with self.exclusive_operation():return self.resolve_all_reviews(data.get('policy'))
         if action=='physical-reference-matches':return self.physical_reference_matches(data)
         if action=='match-search':return self.search_matches(data.get('query'),data.get('exclude'),data.get('sourceScope','all'))
@@ -4458,6 +4912,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if len(parts)!=6 or not parts[4] or not parts[5]:raise Problem('Plex playback address not found.',404)
                 url=self.box.plex_playback_url(parts[4],parts[5])
                 self.send_response(302);self.send_header('Location',url);self.send_header('Cache-Control','private,no-store');self.send_header('Content-Length','0');self.end_headers();return
+            if path.startswith('/api/playback/source/'):
+                parts=path.split('/')
+                if len(parts)!=7 or not all(parts[4:]):raise Problem('Connected playback address not found.',404)
+                url=self.box.connected_child_playback_url(*parts[4:])
+                self.send_response(302);self.send_header('Location',url);self.send_header('Cache-Control','private,no-store');self.send_header('Content-Length','0');self.end_headers();return
             if path.startswith('/api/reader/'):
                 parts=[part for part in path.split('/') if part]
                 if len(parts) not in (4,6) or parts[:2]!=['api','reader']:
@@ -4492,7 +4951,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 args={k:v[0] for k,v in urllib.parse.parse_qs(parsed.query).items()}
                 try:return self.json(self.box.browse.page(args))
                 except ValueError as error:raise Problem(str(error)) from error
-            if path=='/api/library/reviews':return self.json({'reviews':self.box.reviews()})
+            if path=='/api/library/reviews':
+                with self.box.db() as db:count=db.execute('SELECT COUNT(*) FROM review_queue').fetchone()[0]
+                return self.json({'reviews':self.box.reviews(),'reviewCount':count})
             if path=='/api/library/hidden':
                 args=urllib.parse.parse_qs(parsed.query)
                 try:offset=int(args.get('offset',['0'])[0])
@@ -4517,6 +4978,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 state=self.box.public_state();profile_id=self.session_profile_id()
                 if profile_id!='recovery':state['profile']=self.box.profile(profile_id)
                 return self.json(state)
+            if path=='/api/preorders':
+                args={key:value[0] for key,value in urllib.parse.parse_qs(parsed.query).items()}
+                try:
+                    with self.box.db() as db:
+                        return self.json(preorder_detail(db,args['id']) if args.get('id') else preorder_page(db,query=args.get('q',''),status=args.get('status','active'),offset=int(args.get('offset','0')),limit=int(args.get('limit','25'))))
+                except ValueError as error:raise Problem(str(error)) from error
             if path=='/api/collecting':
                 with self.box.db() as db:targets=list_targets(db)
                 items=self.box.public_state()['items'];indexed=ownership_index(items)
@@ -4800,6 +5267,7 @@ def main():
             print('Core startup validation passed.')
         finally:runtime_lock.__exit__()
         return
+    box.start_provider_consolidation()
     stop=threading.Event()
     if options['backupEveryHours'] is not None:
         box.backup_every_hours=options['backupEveryHours']

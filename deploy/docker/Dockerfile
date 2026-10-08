@@ -7,6 +7,7 @@ LABEL org.opencontainers.image.title="Blank Box Community" \
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    SQLITE_TMPDIR=/data \
     BLANKBOX_DATA=/data \
     BLANKBOX_HOST=0.0.0.0 \
     BLANKBOX_PORT=25265
@@ -17,7 +18,7 @@ RUN groupadd --gid 1000 blankbox \
     && install -d -o root -g root -m 0755 /opt/blankbox
 
 WORKDIR /opt/blankbox
-COPY --chown=root:root server.py file_safety.py runtime_lock.py release_files.py release_auth.py release-trust.json artwork.py artwork_gallery.py collector_features.py oidc.py metadata.py catalog_details.py metadata_pack.py metadata_indexed_pack.py metapack_identity.py disc_id.py collecting.py completion.py edition_completion.py library_collections.py barcodes.py collection_discovery.py bundled_metadata.py refresh_schedule.py library_browse.py folder_monitor.py commerce.py tv_catalog.py catalog_lists.py local_clues.py disc_import.py disc_import_linux.py reader.py restore.py doctor.py maintenance.py ./
+COPY --chown=root:root server.py file_safety.py runtime_lock.py release_files.py release_auth.py release-trust.json artwork.py artwork_gallery.py collector_features.py oidc.py metadata.py catalog_details.py metadata_pack.py metadata_indexed_pack.py metapack_identity.py disc_id.py collecting.py preorders.py completion.py edition_completion.py library_collections.py barcodes.py collection_discovery.py bundled_metadata.py refresh_schedule.py library_browse.py provider_matching.py folder_monitor.py commerce.py tv_catalog.py music_catalog.py catalog_lists.py local_clues.py disc_import.py disc_import_linux.py reader.py restore.py doctor.py maintenance.py ./
 COPY --chown=root:root retail_connectors ./retail_connectors
 COPY --chown=root:root bundled-metadata ./bundled-metadata
 COPY --chown=root:root VERSION RELEASE.json LICENSE THIRD-PARTY-NOTICES.md ./

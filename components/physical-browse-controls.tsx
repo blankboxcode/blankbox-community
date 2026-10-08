@@ -28,16 +28,12 @@ type Props = {
   onLocations: () => void;
   onCollections: () => void;
   onIntendToBuy?: () => void;
+  onPreorders?: () => void;
 };
 
-export function PhysicalBrowseControls({ category, onCategory, format, formats, onFormat, genre, genres, onGenre, status, onStatus, sort, onSort, favorites, onFavorites, view, onView, local, onLocations, onCollections, onIntendToBuy }: Props) {
+export function PhysicalBrowseControls({ category, onCategory, format, formats, onFormat, genre, genres, onGenre, status, onStatus, sort, onSort, favorites, onFavorites, view, onView, local, onLocations, onCollections, onIntendToBuy, onPreorders }: Props) {
   return <section className="physical-controls" aria-label="Browse Physical Media">
-    <Tabs value={category} onValueChange={onCategory} className="physical-category-tabs">
-      <TabsList className="filter-tabs" aria-label="Physical Media category">
-        <TabsTrigger value="all">All Media</TabsTrigger>
-        {categories.map(kind => <TabsTrigger key={kind} value={kind}>{kindNames[kind]}</TabsTrigger>)}
-      </TabsList>
-    </Tabs>
+    <PhysicalCategoryTabs category={category} onCategory={onCategory} onIntendToBuy={onIntendToBuy} onPreorders={onPreorders}/>
     <div className={`physical-filter-fields ${local ? '' : 'physical-filter-fields-preview'}`}>
       <label><span>{category === 'game' ? 'Console / Platform' : category === 'all' ? 'Format / Platform' : 'Format'}</span>
         <select aria-label="Physical format or platform" value={format} onChange={event => onFormat(event.target.value)}>
@@ -66,4 +62,19 @@ export function PhysicalBrowseControls({ category, onCategory, format, formats, 
       </div>
     </div>
   </section>;
+}
+
+export function PhysicalCategoryTabs({ category, onCategory, onIntendToBuy, onPreorders, context = 'physical' }: Pick<Props, 'category' | 'onCategory' | 'onIntendToBuy' | 'onPreorders'> & { context?: 'library' | 'physical' }) {
+  return <Tabs value={category} onValueChange={value => {
+    if (value === 'collecting') onIntendToBuy?.();
+    else if (value === 'preorders') onPreorders?.();
+    else onCategory(value);
+  }} className="physical-category-tabs">
+    <TabsList className="filter-tabs" aria-label={context === 'physical' ? 'Physical Media category' : 'My Library category'}>
+      <TabsTrigger value="all">All Media</TabsTrigger>
+      {categories.map(kind => <TabsTrigger key={kind} value={kind}>{kindNames[kind]}</TabsTrigger>)}
+      {onIntendToBuy && <TabsTrigger value="collecting">{navigationLabels.collecting}</TabsTrigger>}
+      {onPreorders && <TabsTrigger value="preorders">{navigationLabels.preorders}</TabsTrigger>}
+    </TabsList>
+  </Tabs>;
 }

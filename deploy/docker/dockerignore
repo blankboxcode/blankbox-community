@@ -12,6 +12,7 @@
 !collection_discovery.py
 !refresh_schedule.py
 !library_browse.py
+!provider_matching.py
 !folder_monitor.py
 !bundled_metadata.py
 !bundled-metadata/
@@ -23,9 +24,11 @@
 !music-proof-pack.json
 !disc_id.py
 !collecting.py
+!preorders.py
 !completion.py
 !commerce.py
 !tv_catalog.py
+!music_catalog.py
 !retail_connectors/
 !retail_connectors/**
 !catalog_lists.py

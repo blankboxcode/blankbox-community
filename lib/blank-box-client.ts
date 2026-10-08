@@ -1,5 +1,6 @@
+import type { Preorder, PreorderDetail, PreorderPage, PreorderReceipt } from './preorders';
 import type { BlankBoxCapabilities } from './capabilities';
-import type { CatalogDetails, Job, Kind, LibraryState, MediaItem, OwnerProfile, TvCatalog } from './media';
+import type { CatalogDetails, Job, Kind, LibraryState, MediaItem, OwnerProfile, TvCatalog, MusicCatalog } from './media';
 
 export type LibraryPage = { items:MediaItem[];total:number;offset:number;limit:number;indexStatus:'building'|'ready'|'unavailable';shelfGroups:{location:string;copies:number;entries:{itemId:string;copies:number}[]}[] };
 export type LibraryPageOptions = {standalonePhysical?:boolean;excludeSamples?:boolean;q?:string;view?:string;kind?:string;genre?:string;status?:string;sort?:string;favorites?:boolean;facet?:string;shelves?:boolean;collection?:string;offset?:number;limit?:number};
@@ -52,6 +53,9 @@ export type InventoryReview = {
 };
 
 export type ApiResult = {
+  preorder?: Preorder;
+  receipt?: PreorderReceipt;
+  alreadyReceived?: boolean;
   error?: string;
   id?: string;
   batchId?: string;
@@ -106,6 +110,7 @@ export type ApiResult = {
   storeSources?: StoreSource[];
   customStoreSources?: CustomStoreSource[];
   tvCatalog?: TvCatalog;
+  musicCatalog?: MusicCatalog;
   sourceId?: string;
 };
 
@@ -142,6 +147,8 @@ export interface BlankBoxClient {
   metadataEdit(id: string, field: string, value: string | number | null): Promise<MetadataEntity>;
   metadataIdentifier(id: string, operation: 'add' | 'remove' | 'update', namespace: string, value: string, newValue?: string): Promise<MetadataEntity>;
   metadataConfirm(targetType: 'item' | 'physical_release' | 'digital_source', targetId: string, entityId: string, applyDetails?: boolean): Promise<MediaItem | undefined>;
+  preorders(options?: { query?: string; status?: string; offset?: number }): Promise<PreorderPage>;
+  preorder(id: string): Promise<PreorderDetail>;
   collecting(): Promise<{ targets: CollectingTarget[]; sets: CompletionSet[]; suggestions: CollectionSuggestion[] } & CollectionRecommendations>;
   scan(id: string): Promise<{ files: ScanFile[] }>;
   inventory(sourceId: string, options?: { limit?: number; offset?: number; kind?: string; query?: string; group?: string; unlinkedOnly?:boolean }): Promise<InventoryPage>;
@@ -168,21 +175,41 @@ async function responseJson<T>(response: Response, fallback: string): Promise<T>
   return value as T;
 }
 
+/** Bound read requests, including body reads, so an idle connection can retry. */
+export async function readJson<T>(url:string,fallback:string,signal?:AbortSignal,timeoutMs=15000):Promise<T> {
+  const controller=new AbortController();
+  const abort=()=>controller.abort();
+  let timedOut=false;
+  if(signal?.aborted)controller.abort();
+  else signal?.addEventListener('abort',abort,{once:true});
+  const timer=setTimeout(()=>{timedOut=true;controller.abort();},timeoutMs);
+  try{return await responseJson<T>(await fetch(url,{cache:'no-store',signal:controller.signal}),fallback);}
+  catch(cause){if(timedOut)throw new Error(`${fallback} The request timed out. Please retry.`);throw cause;}
+  finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);}
+}
+
 export class HttpBlankBoxClient implements BlankBoxClient {
   private pendingJobs: Promise<JobState> | null = null;
+  private pendingLibrary: Promise<LibraryState> | null = null;
   jobs(): Promise<JobState> {
-    if (!this.pendingJobs) this.pendingJobs = fetch('/api/jobs', { cache: 'no-store' }).then(response => responseJson<JobState>(response, 'Unable to read operation progress.')).finally(() => { this.pendingJobs = null; });
+    if (!this.pendingJobs) {
+      const pending=readJson<JobState>('/api/jobs','Unable to read operation progress.').finally(() => { if(this.pendingJobs===pending)this.pendingJobs=null; });
+      this.pendingJobs=pending;
+    }
     return this.pendingJobs;
   }
-  async loadLibrary(): Promise<LibraryState> {
-    let response = await fetch('/api/library/summary', { cache: 'no-store' });
-    if(response.status===404)response=await fetch('/api/library', { cache: 'no-store' });
-    return responseJson<LibraryState>(response, 'Unable to open your library.');
+  loadLibrary(): Promise<LibraryState> {
+    if(!this.pendingLibrary){const pending=readJson<LibraryState>('/api/library/summary','Unable to open your library.')
+      .catch(cause=>{if(cause instanceof BlankBoxClientError&&cause.status===404)return readJson<LibraryState>('/api/library','Unable to open your library.');throw cause;})
+      .finally(()=>{if(this.pendingLibrary===pending)this.pendingLibrary=null;});
+      this.pendingLibrary=pending;
+    }
+    return this.pendingLibrary;
   }
 
   async libraryPage(options:LibraryPageOptions={}, signal?:AbortSignal):Promise<LibraryPage> {
     const params=new URLSearchParams(Object.entries(options).map(([k,v])=>[k,String(v)]));
-    return responseJson<LibraryPage>(await fetch(`/api/library/items?${params}`,{cache:'no-store',signal}),'Unable to browse your library.');
+    return readJson<LibraryPage>(`/api/library/items?${params}`,'Unable to browse your library.',signal);
   }
   async selection(ids:string[]):Promise<MediaItem[]> {
     if(!ids.length)return [];
@@ -207,7 +234,10 @@ export class HttpBlankBoxClient implements BlankBoxClient {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action, ...data }),
     });
-    return responseJson<ApiResult>(response, 'Please try again.');
+    const result=await responseJson<ApiResult>(response, 'Please try again.');
+    // Reads started before a completed write must not satisfy its refresh.
+    this.pendingLibrary=null;this.pendingJobs=null;
+    return result;
   }
 
   async uploadMetadataPack(file: File): Promise<MetadataPackInfo> {
@@ -282,6 +312,15 @@ export class HttpBlankBoxClient implements BlankBoxClient {
     const result = await this.action('metadata-confirm', { targetType, targetId, entityId, confirm: true, applyDetails });
     if (applyDetails && !result.item) throw new BlankBoxClientError('The reference was not applied to the catalog item.', 500);
     return result.item;
+  }
+
+  async preorders(options: { query?: string; status?: string; offset?: number } = {}): Promise<PreorderPage> {
+    const params = new URLSearchParams({ q: options.query || '', status: options.status || 'active', offset: String(options.offset || 0) });
+    return responseJson<PreorderPage>(await fetch(`/api/preorders?${params}`, { cache: 'no-store' }), 'Unable to load preorders.');
+  }
+
+  async preorder(id: string): Promise<PreorderDetail> {
+    return responseJson<PreorderDetail>(await fetch(`/api/preorders?id=${encodeURIComponent(id)}`, { cache: 'no-store' }), 'Unable to load order history.');
   }
 
   async collecting(): Promise<{ targets: CollectingTarget[]; sets: CompletionSet[]; suggestions: CollectionSuggestion[] } & CollectionRecommendations> {

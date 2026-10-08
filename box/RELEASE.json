@@ -1,8 +1,8 @@
 {
   "product": "Blank Box Community",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "channel": "release",
   "packageFormat": 1,
-  "catalogSchema": 22,
+  "catalogSchema": 23,
   "minimumPackReader": 5
 }

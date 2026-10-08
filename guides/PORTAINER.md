@@ -59,7 +59,7 @@ Blank Box containers created outside Portainer can appear with limited stack con
 For an existing Portainer-managed stack:
 
 1. Create a complete recovery point in **Settings → System & About** on your configured separate backup drive. Wait for it and any imports or syncs to finish. Keep the current image digest and stack settings.
-2. Download and verify the new [Docker setup ZIP](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/downloads/blankbox-docker-1.0.0-1.zip) with your previously trusted verifier. Its authenticated `image.json` identifies the new image digest.
+2. Download and verify the new [Docker setup ZIP](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/downloads/blankbox-docker-1.0.1-1.zip) with your previously trusted verifier. Its authenticated `image.json` identifies the new image digest.
 3. Pull that exact image on your Docker host before updating. This checks that it is available while the current container keeps running:
 
    ```sh

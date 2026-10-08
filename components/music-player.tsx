@@ -3,6 +3,7 @@
 
 import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Disc3, Music2 } from 'lucide-react';
+import {musicPlaybackTracks} from '@/lib/item-presentation';
 import type { MediaItem, MediaSource } from '@/lib/media';
 
 function externalUrl(value?: string) {
@@ -13,10 +14,9 @@ function externalUrl(value?: string) {
 
 export function MusicPlayer({ item, previewUrl, startSourceId }: { item: MediaItem; previewUrl?: string; startSourceId?: string }) {
   const tracks = useMemo(() => {
-    const local = item.sources.filter(source => ['local', 'digital'].includes(source.type) && source.url);
-    const sorted = [...local].sort((a, b) => (a.trackNumber || 0) - (b.trackNumber || 0));
+    const sorted = musicPlaybackTracks(item,startSourceId);
     return previewUrl ? [{ id: 'preview', type: 'digital', label: 'This device', url: previewUrl, trackTitle: item.title } as MediaSource, ...sorted] : sorted;
-  }, [item, previewUrl]);
+  }, [item, previewUrl, startSourceId]);
   const initial = Math.max(0, tracks.findIndex(source => source.id === startSourceId));
   const [index, setIndex] = useState(initial);
   const [failed,setFailed]=useState(false);

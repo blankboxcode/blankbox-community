@@ -35,8 +35,8 @@ export function EditionReferenceActions({ item, edition, disabled, onChanged }: 
   if (edition.origin === 'household-copy' || edition.origin === 'household-file') return null;
   return <>
     {canBuy && edition.status !== 'owned' && <button className="text-button" disabled={disabled || busy || saved || edition.wanted} onClick={() => void act('collecting-add', { releaseId: edition.id }).then(ok => {
-      if (ok) { setSaved(true); toast.success('Edition added to Intend to Buy'); }
-    })}>{saved || edition.wanted ? 'Intention saved' : 'Intend to Buy this edition'}</button>}
+      if (ok) { setSaved(true); toast.success('Edition added to Wishlist'); }
+    })}>{saved || edition.wanted ? 'Intention saved' : 'Wishlist this edition'}</button>}
     {!!copies.length && edition.status !== 'owned' && <button className="text-button" disabled={disabled || busy} onClick={() => {
       setChoosing(!choosing); setCopyId(copies[0].physicalReleaseId!);
     }}>Match owned copy</button>}

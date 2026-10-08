@@ -1,4 +1,5 @@
 'use client';
+import { rebaseSettingsDraft } from '@/lib/settings-draft';
 /* eslint-disable @next/next/no-img-element -- Local/user media URLs need direct browser rendering and are not compatible with Next image optimization. */
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Home, Library, Layers3, Film, Tv, Music2, Images, BookOpen, Gamepad2, Disc3, Camera, List, Package, FolderOpen, HardDrive, ShieldCheck, Plus, Search, Play, ArrowLeft, ArrowUpRight, ArrowDownToLine, ChevronDown, ChevronRight, Check, Heart, Globe2, Settings2, Upload, FolderInput, X, Menu, PanelLeft, Info, Loader2, RefreshCw, LockKeyhole, CheckCircle2, Server, Cloud } from 'lucide-react';
@@ -24,6 +25,7 @@ import { catalogEditPayload, type CatalogEditFocus } from '@/lib/catalog-edit';
 import { CatalogEditorDialog, type MediaEdit } from '@/components/catalog-editor-dialog';
 import { MetadataMatchDialog } from '@/components/metadata-match-dialog';
 import { ReconciliationPanel, type ReviewPolicy } from '@/components/reconciliation-panel';
+import { CardAvailability } from '@/components/card-availability';
 import { BrandLogo } from '@/components/brand-logo';
 import { PhysicalBrowseControls } from '@/components/physical-browse-controls';
 import { navigationLabels } from '@/lib/navigation';
@@ -48,16 +50,17 @@ import { activityLabel, itemGenres, type ActivityStatus } from '@/lib/collection
 import { barcodeEquivalent } from '@/lib/barcodes';
 import { prepareCover } from '@/lib/artwork';
 import { CameraPhysicalIntake, type CameraEntry } from '@/components/camera-physical-intake';
+import { PreorderTracker } from '@/components/preorder-tracker';
 import { CollectionPlanner } from '@/components/collection-planner';
 import { defaultHomeRows, featuredCoverPool, featuredMediaKeys, homeRowOptions, type HomeHeroMode, type HomeRow } from '@/lib/home-preferences';
 import { normalizeSidebarOrder } from '@/lib/sidebar-preferences';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { blankBoxClient, BlankBoxClientError, type MetadataCandidate, type ScanFile, type LibraryPage } from '@/lib/blank-box-client';
-import { bytes, defaults, detectKind, hasDigitalOrConnectedSource, isAudiobookSource, isConnectedPlaybackSource, kindNames, mediaAddedAt, mediaReleaseAt, preferredPlaybackSource, readerFormat, sourceActionLabel, summarizeCollection, type Kind, type LibraryState, type MediaItem, type MediaSource, type ReaderFormat, type Settings } from '@/lib/media';
+import { blankBoxClient, BlankBoxClientError, readJson, type MetadataCandidate, type ScanFile, type LibraryPage, type CollectingTarget } from '@/lib/blank-box-client';
+import { bytes, defaults, detectKind, hasDigitalOrConnectedSource, isAudiobookSource, isConnectedPlaybackSource, kindNames, mediaAddedAt, mediaReleaseAt, preferredPlaybackSource, readerFormat, sourceActionLabel, summarizeCollection, type Job, type Kind, type LibraryState, type MediaItem, type MediaSource, type ReaderFormat, type Settings } from '@/lib/media';
 import { defaultKindForFormat, emptyPhysicalDraft, preferredPhysicalFormat, physicalFormatLabel, physicalFormats, physicalKindOptions, type PhysicalDraft, type PhysicalFormat } from '@/lib/physical-media';
 import { BLANKBOX_CHANNEL, BLANKBOX_PACKAGE_NAME, BLANKBOX_VERSION } from '@/lib/version';
 import './blank-box.css';
-type View = 'home' | 'collections' | 'library' | 'physical' | 'collecting' | 'movie' | 'tv' | 'music' | 'photo' | 'book' | 'comic' | 'game' | 'import' | 'services' | 'storage' | 'settings';
+type View = 'home' | 'collections' | 'library' | 'physical' | 'collecting' | 'preorders' | 'movie' | 'tv' | 'music' | 'photo' | 'book' | 'comic' | 'game' | 'import' | 'services' | 'storage' | 'settings';
 type SettingsTab = 'general' | 'collection' | 'connections' | 'devices' | 'metadata' | 'activity';
 const settingsTabs: {
     id: SettingsTab;
@@ -72,7 +75,7 @@ const navItems: {
     id: View;
     label: string;
     icon: typeof Home;
-}[] = [{ id: 'home', label: navigationLabels.home, icon: Home }, { id: 'library', label: navigationLabels.library, icon: Library }, { id: 'collections', label: navigationLabels.collections, icon: Layers3 }, { id: 'movie', label: navigationLabels.movie, icon: Film }, { id: 'tv', label: navigationLabels.tv, icon: Tv }, { id: 'music', label: navigationLabels.music, icon: Music2 }, { id: 'photo', label: navigationLabels.photo, icon: Images }, { id: 'book', label: navigationLabels.book, icon: BookOpen }, { id: 'comic', label: navigationLabels.comic, icon: BookOpen }, { id: 'game', label: navigationLabels.game, icon: Gamepad2 }, { id: 'physical', label: navigationLabels.physical, icon: Disc3 }];
+}[] = [{ id: 'home', label: navigationLabels.home, icon: Home }, { id: 'library', label: navigationLabels.library, icon: Library }, { id: 'collections', label: navigationLabels.collections, icon: Layers3 }, { id: 'movie', label: navigationLabels.movie, icon: Film }, { id: 'tv', label: navigationLabels.tv, icon: Tv }, { id: 'music', label: navigationLabels.music, icon: Music2 }, { id: 'photo', label: navigationLabels.photo, icon: Images }, { id: 'book', label: navigationLabels.book, icon: BookOpen }, { id: 'comic', label: navigationLabels.comic, icon: BookOpen }, { id: 'game', label: navigationLabels.game, icon: Gamepad2 }, { id: 'physical', label: navigationLabels.physical, icon: Disc3 }, { id: 'collecting', label: navigationLabels.collecting, icon: Heart }, { id: 'preorders', label: navigationLabels.preorders, icon: Package }];
 const homeServices: {
     name: string;
     description: string;
@@ -81,29 +84,12 @@ const homeServices: {
 }[] = [{ name: 'Jellyfin', description: 'Your video and music library', key: 'jellyfinUrl', icon: Film }, { name: 'Plex', description: 'Your connected media server', key: 'plexUrl', icon: Server }, { name: 'Immich', description: 'Your photos and phone backups', key: 'immichUrl', icon: Images }];
 const emptyState: LibraryState = { mode: 'box', items: [], physicalInventory: { titles: 0, packages: 0, copies: 0, includedTitles: 0, formats: [] }, hiddenItems: 0, hiddenRecords: [], reviews: [], reviewCount: 0, settings: defaults, sources: [], jobs: [], storage: null, backup: { configured: false }, version: BLANKBOX_VERSION };
 function safeUrl(s?: string) { try {
-    const u = /^\/api\/playback\/plex\/[^/]+\/[^/]+$/.test(s || '') && typeof window !== 'undefined' ? new URL(s!, window.location.origin) : new URL(s || '');
+    const u = /^\/api\/playback\/(?:plex\/[^/]+\/[^/]+|source\/[^/]+\/[^/]+\/[^/]+)$/.test(s || '') && typeof window !== 'undefined' ? new URL(s!, window.location.origin) : new URL(s || '');
     return ['https:', 'http:'].includes(u.protocol) && !u.username && !u.password ? u.href : '';
 }
 catch {
     return '';
 } }
-function collectionLabel(item: MediaItem) {
-    if (item.sample)
-        return 'Open movie';
-    const preferred = preferredPlaybackSource(item);
-    if (preferred?.type === 'digital')
-        return 'Linked file on your drive';
-    if (preferred?.type === 'local')
-        return 'Digital file ready';
-    if (isConnectedPlaybackSource(preferred))
-        return `Connected to ${preferred.label}`;
-    if (item.sources.some(source => source.type === 'catalog'))
-        return 'Digital file cataloged';
-    const physicalCopies = item.sources.filter(source => source.type === 'physical');
-    if (physicalCopies.length)
-        return physicalCopies.length === 1 ? physicalCopies[0].label : `${physicalCopies.length} physical copies`;
-    return 'In your library';
-}
 function physicalBadge(item: MediaItem) {
     const formats = [...new Set(item.sources.filter(source => source.type === 'physical').map(source => source.label.trim()).filter(Boolean))].map(format => format === 'Game' ? physicalFormatLabel('Game') : format);
     const Icon = item.kind === 'game' ? Gamepad2 : item.kind === 'book' || item.kind === 'comic' ? BookOpen : item.kind === 'music' ? Music2 : item.kind === 'photo' || item.kind === 'home-video' ? Images : item.kind === 'movie' || item.kind === 'tv' ? Film : Disc3;
@@ -176,7 +162,7 @@ function ImportActivity({ jobs }: {
 }) {
     const imports = jobs.slice(0, 8);
     const active = imports.filter(job => ['queued', 'running'].includes(job.status));
-    const label = (type: string) => ({ inventory: 'Indexing files in place', 'inventory-bulk-preview': 'Planning bulk matches', 'inventory-bulk-link': 'Linking reviewed files', 'source-monitor': 'Monitoring configured media folder', scan: 'Discovering your media', 'auto-discovery': 'Finding personal files for review', 'auto-import': 'Automatic folder refresh', jellyfin: 'Refreshing Jellyfin catalog', plex: 'Refreshing Plex catalog', 'disc-import': 'Digitizing audio CD', backup: 'Verifying library backup', 'full-recovery': 'Creating complete recovery point', 'prepare-full-restore': 'Preparing restore review copy', 'restore-provider-covers': 'Restoring saved provider covers', 'backup-indexed': 'Backing up selected files', 'backup-indexed-all': 'Backing up indexed personal files' } as Record<string, string>)[type] || 'Adding media to Blank Box';
+    const label = (type: string) => ({ inventory: 'Indexing files in place', 'inventory-bulk-preview': 'Planning bulk matches', 'inventory-bulk-link': 'Linking reviewed files', 'source-monitor': 'Monitoring configured media folder', scan: 'Discovering your media', 'auto-discovery': 'Finding personal files for review', 'auto-import': 'Automatic folder refresh', 'match-review': 'Saving match choices', jellyfin: 'Refreshing Jellyfin catalog', plex: 'Refreshing Plex catalog', 'disc-import': 'Digitizing audio CD', backup: 'Verifying library backup', 'full-recovery': 'Creating complete recovery point', 'prepare-full-restore': 'Preparing restore review copy', 'restore-provider-covers': 'Restoring saved provider covers', 'backup-indexed': 'Backing up selected files', 'backup-indexed-all': 'Backing up indexed personal files' } as Record<string, string>)[type] || 'Adding media to Blank Box';
     const time = (value?: string) => { if (!value)
         return ''; const parsed = new Date(value); return Number.isNaN(parsed.getTime()) ? '' : parsed.toLocaleString(); };
     return <details className="section activity-disclosure" open={active.length ? true : undefined}><summary><span><strong>Recent activity</strong><small>{active.length ? `${active.length} active` : imports.length ? 'Recent jobs' : 'No activity yet'}</small></span><ChevronDown size={18}/></summary><div className="activity-disclosure-body">{imports.length ? <div className="activity-list">{imports.map(job => <div className="job-row" key={job.id}><span className="job-icon">{job.status === 'complete' ? <CheckCircle2 /> : job.status === 'failed' ? <Info /> : <Loader2 className="animate-spin"/>}</span><div><strong>{label(job.type)}</strong><p>{job.message || `${job.done} of ${job.total} files · ${job.status}`}</p><small className="job-timestamp">{job.createdAt ? `Started ${time(job.createdAt)}` : 'Start time unavailable'}{job.finishedAt ? ` · Finished ${time(job.finishedAt)}` : ''}</small>{job.errors?.length ? <p className="error-text">{job.errors.slice(0, 3).join(' · ')}</p> : null}{job.type !== 'inventory' && ['running', 'queued'].includes(job.status) && <Progress value={job.total ? job.done / job.total * 100 : 0}/>}</div><span className="quiet-badge">{job.status}</span></div>)}</div> : <div className="empty-activity"><FolderInput size={21}/><span>Jobs will appear here.</span></div>}</div></details>;
@@ -216,6 +202,7 @@ export default function BlankBox() {
         draft: PhysicalDraft;
         candidates: MediaItem[];
     } | null>(null), [playing, setPlaying] = useState<MediaItem | null>(null), [busy, setBusy] = useState(false), [addDisc, setAddDisc] = useState(false), [onboarding, setOnboarding] = useState(false), [tvMode, setTvMode] = useState(false), [sidebarOpen, setSidebarOpen] = useState(true), [heroIndex, setHeroIndex] = useState(0), [photoSeed] = useState(() => Math.random()), [matchOpen, setMatchOpen] = useState(false), [matchTarget, setMatchTarget] = useState<MediaItem | null>(null), [matchSeed, setMatchSeed] = useState(0);
+    const settingsBaseline = useRef<Settings>(defaults);
     const [form, setForm] = useState<Settings>(defaults), [settingsTab, setSettingsTab] = useState<SettingsTab>('general'), [disc, setDisc] = useState<PhysicalDraft>(emptyPhysicalDraft), [sourceId, setSourceId] = useState(''), [scanId, setScanId] = useState(''), [scanRows, setScanRows] = useState<ScanFile[]>([]), [scanKinds, setScanKinds] = useState<Kind[]>(['photo', 'home-video', 'file']), [scanSelected, setScanSelected] = useState<Set<string>>(new Set()), [scanPage, setScanPage] = useState(0), [jellyKey, setJellyKey] = useState(''), [plexKey, setPlexKey] = useState(''), [backupSetupOpen, setBackupSetupOpen] = useState(false), [recoveryPoints, setRecoveryPoints] = useState<{
         id: string;
         createdAt: string;
@@ -281,6 +268,16 @@ export default function BlankBox() {
     const isMobile = useIsMobile();
     const activeTvMode = tvMode && !isMobile;
     const [sourceReviewOpen, setSourceReviewOpen] = useState(false);
+    const [reviewsLoading, setReviewsLoading] = useState(false);
+    const [reviewsError, setReviewsError] = useState('');
+    const [reviewReload, setReviewReload] = useState(0);
+    const reviewsRequest = useRef(0), libraryRequest = useRef(0);
+    const reviewSubmitRef = useRef(false), reviewResolutionRef = useRef<{
+        jobId: string;
+        toastId: string | number;
+    } | null>(null);
+    const [reviewSubmitting, setReviewSubmitting] = useState(false);
+    const reviewWorking = reviewSubmitting || state.jobs.some(job => job.type === 'match-review' && ['queued', 'running'].includes(job.status));
     const filesRef = useRef<HTMLInputElement>(null), searchRef = useRef<HTMLInputElement>(null), pollRef = useRef(false), scanRef = useRef(''), reviewJobWatchRef = useRef<{
         jobId: string;
         baseline: number;
@@ -293,11 +290,13 @@ export default function BlankBox() {
     const [libraryAttachResults, setLibraryAttachResults] = useState<MediaItem[]>([]);
     const [libraryAttachTarget, setLibraryAttachTarget] = useState<MediaItem | null>(null);
     const [libraryAttachError, setLibraryAttachError] = useState('');
+    const [preorderIntention, setPreorderIntention] = useState<CollectingTarget | null>(null);
     const settingsDirty = JSON.stringify(form) !== JSON.stringify(state.settings);
     const confirmSettingsExit = useCallback(() => viewRef.current !== 'settings' || !settingsDirty || window.confirm('You have unsaved settings. Leave this page and discard those changes?'), [settingsDirty]);
     const changeView = useCallback((v: View, back = false) => { const prior = viewRef.current; if (v === prior) {
         itemOpenRequest.current++;
         setSelected(null);
+        setQuery('');
         return true;
     } if (!confirmSettingsExit())
         return false; itemOpenRequest.current++; setSelected(null); if (prior === 'settings')
@@ -312,15 +311,22 @@ export default function BlankBox() {
         return;
     } const previous = viewHistoryRef.current.at(-2); if (previous && changeView(previous, true))
         window.location.hash = previous; };
-    const reload = useCallback(async () => { try {
+    const reload = useCallback(async () => { const request = ++libraryRequest.current; try {
         const data = await blankBoxClient.loadLibrary();
-        setState(data);
+        if (request !== libraryRequest.current)
+            return null;
+        setState(current => ({ ...data, items: data.browseIndexStatus === 'building' && current.items.length ? current.items : data.items, reviews: data.pagedLibrary ? current.reviews : data.reviews }));
+        const previousSettings = settingsBaseline.current;
+        settingsBaseline.current = data.settings;
+        setForm(current => rebaseSettingsDraft(previousSettings, current, data.settings));
         setLoaded(true);
         setLocked(false);
         setError('');
         return data;
     }
     catch (e) {
+        if (request !== libraryRequest.current)
+            return null;
         if (e instanceof BlankBoxClientError && e.status === 401)
             setLocked(true);
         setError((e as Error).message);
@@ -332,12 +338,12 @@ export default function BlankBox() {
         setForm(s.settings);
         if (!s.settings.setupDone)
             setOnboarding(true);
-    } }); const frame = requestAnimationFrame(() => { const initial = window.location.hash.slice(1) as View; if (['home', 'library', 'collections', 'physical', 'collecting', 'movie', 'tv', 'music', 'photo', 'book', 'comic', 'game', 'import', 'services', 'storage', 'settings'].includes(initial)) {
+    } }); const frame = requestAnimationFrame(() => { const initial = window.location.hash.slice(1) as View; if (['home', 'library', 'collections', 'physical', 'collecting', 'preorders', 'movie', 'tv', 'music', 'photo', 'book', 'comic', 'game', 'import', 'services', 'storage', 'settings'].includes(initial)) {
         viewRef.current = initial;
         viewHistoryRef.current = [initial];
         setView(initial);
     } const savedTvMode = preference('blank-box-tv', '0') === '1', savedNormalSidebar = preference('blank-box-sidebar', '1') !== '0'; normalSidebarOpenRef.current = savedNormalSidebar; setTvMode(savedTvMode); setSidebarOpen(savedTvMode ? false : savedNormalSidebar); }); return () => { cancelAnimationFrame(frame); }; }, [reload]);
-    useEffect(() => { const hash = () => { const next = window.location.hash.slice(1) as View; if (!['home', 'library', 'collections', 'physical', 'collecting', 'movie', 'tv', 'music', 'photo', 'book', 'comic', 'game', 'import', 'services', 'storage', 'settings'].includes(next) || next === viewRef.current)
+    useEffect(() => { const hash = () => { const next = window.location.hash.slice(1) as View; if (!['home', 'library', 'collections', 'physical', 'collecting', 'preorders', 'movie', 'tv', 'music', 'photo', 'book', 'comic', 'game', 'import', 'services', 'storage', 'settings'].includes(next) || next === viewRef.current)
         return; if (!changeView(next))
         window.history.replaceState(null, '', `#${viewRef.current}`); }; window.addEventListener('hashchange', hash); return () => window.removeEventListener('hashchange', hash); }, [changeView]);
     useEffect(() => { if (view !== 'settings' || !settingsDirty)
@@ -396,7 +402,10 @@ export default function BlankBox() {
                 else
                     setState(previous => ({ ...previous, jobs: status.jobs }));
             }
-            catch { /* A transient progress error retries without fetching the whole catalog. */ }
+            catch (cause) {
+                if (cause instanceof BlankBoxClientError && cause.status === 401)
+                    setLocked(true); /* Other progress errors retry without fetching the whole catalog. */
+            }
             finally {
                 pollRef.current = false;
                 if (active)
@@ -411,15 +420,19 @@ export default function BlankBox() {
             return;
         let active = true;
         let pending = false;
-        const timer = setInterval(() => { if (document.hidden || pending)
+        const check = () => { if (document.hidden || pending)
             return; pending = true; void blankBoxClient.jobs().then(async (status) => { if (!active)
             return; const prior = new Map(state.jobs.map(job => [job.id, job.status])); if (status.browseIndexStatus === 'building') {
             setState(current => ({ ...current, browseIndexStatus: 'building', jobs: status.jobs }));
             return;
         } if (status.catalogRevision !== state.catalogRevision || status.jobs.some(job => prior.get(job.id) !== job.status)) {
             await reload();
-        } }).catch(() => { }).finally(() => { pending = false; }); }, 30000);
-        return () => { active = false; clearInterval(timer); };
+        } }).catch(cause => { if (cause instanceof BlankBoxClientError && cause.status === 401)
+            setLocked(true); }).finally(() => { pending = false; }); };
+        const timer = setInterval(check, 30000);
+        window.addEventListener('focus', check);
+        document.addEventListener('visibilitychange', check);
+        return () => { active = false; clearInterval(timer); window.removeEventListener('focus', check); document.removeEventListener('visibilitychange', check); };
     }, [state.mode, state.pagedLibrary, state.jobs, state.browseIndexStatus, state.catalogRevision, reload]);
     const [hiddenOffset, setHiddenOffset] = useState(0);
     useEffect(() => { if (!state.pagedLibrary || view !== 'settings' || settingsTab !== 'connections')
@@ -429,13 +442,34 @@ export default function BlankBox() {
                 records: LibraryState['hiddenRecords'];
             }).records as LibraryState['hiddenRecords'] })); }).catch(cause => { if (active)
         toast.error((cause as Error).message); }); return () => { active = false; }; }, [state.pagedLibrary, state.hiddenItems, view, settingsTab, hiddenOffset]);
-    useEffect(() => { if (!state.pagedLibrary || !(view === 'import' || sourceReviewOpen))
-        return; let active = true; void fetch('/api/library/reviews', { cache: 'no-store' }).then(response => { if (!response.ok)
-        throw new Error('Unable to read match reviews.'); return response.json(); }).then(value => { if (active)
-        setState(current => ({ ...current, reviews: (value as {
+    const loadReviews = useCallback(async () => {
+        const request = ++reviewsRequest.current;
+        setReviewsLoading(true);
+        setReviewsError('');
+        try {
+            const value = await readJson<{
                 reviews: LibraryState['reviews'];
-            }).reviews as LibraryState['reviews'] })); }).catch(cause => { if (active)
-        toast.error((cause as Error).message); }); return () => { active = false; }; }, [state.pagedLibrary, state.items, view, sourceReviewOpen]);
+                reviewCount: number;
+            }>('/api/library/reviews', 'Unable to read match reviews.');
+            if (request !== reviewsRequest.current)
+                return null;
+            setState(current => ({ ...current, reviews: value.reviews, reviewCount: value.reviewCount }));
+            return value.reviewCount;
+        }
+        catch (cause) {
+            if (request === reviewsRequest.current)
+                setReviewsError((cause as Error).message);
+            return null;
+        }
+        finally {
+            if (request === reviewsRequest.current)
+                setReviewsLoading(false);
+        }
+    }, []);
+    // Match previews are fetched separately from the paged catalog.
+    // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
+    useEffect(() => { if (state.pagedLibrary && (view === 'import' || sourceReviewOpen))
+        void loadReviews(); return () => { reviewsRequest.current++; }; }, [state.pagedLibrary, state.reviewCount, view, sourceReviewOpen, reviewReload, loadReviews]);
     const act = async (action: string, data: Record<string, unknown>, message?: string) => { const reviewBaseline = state.reviewCount; setBusy(true); try {
         const v = await blankBoxClient.action(action, data), snapshot = await reload(), watchesReviews = ['jellyfin', 'plex'].includes(action) || action === 'import' && data.policy === 'review';
         if (watchesReviews && v.id) {
@@ -486,8 +520,10 @@ export default function BlankBox() {
     finally {
         setBusy(false);
     } };
-    const persistSettings = async (next: Settings, close = false) => { setForm(next); const v = await act('settings', { settings: next }, close ? 'Setup complete' : 'Settings saved'); if (v)
-        setHeroIndex(0); if (v && close)
+    const persistSettings = async (next: Settings, close = false) => { setForm(next); const v = await act('settings', { settings: next }, close ? 'Setup complete' : 'Settings saved'); if (v) {
+        setForm(current => rebaseSettingsDraft(next, current, settingsBaseline.current));
+        setHeroIndex(0);
+    } if (v && close)
         setOnboarding(false); return !!v; };
     const saveSettings = async (close = false) => persistSettings(form, close);
     const savePhysicalLocation = async (location: string) => { const value = location.trim(); if (!value)
@@ -780,11 +816,11 @@ export default function BlankBox() {
         value: LibraryPage;
     } | null>(null);
     const [pageLoading, setPageLoading] = useState(false), [pageError, setPageError] = useState('');
-    const libraryEpoch = 0;
+    const [libraryEpoch, setLibraryEpoch] = useState(0);
     const libraryPageKey = JSON.stringify([view, searchQuery, filter, sort, favorites, physicalFormatFilter, genreFilter, activityFilter, physicalView]);
     const libraryPageIndex = libraryPage.key === libraryPageKey ? libraryPage.page : 0;
-    const pageRequestKey = `${libraryPageKey}:${libraryPageIndex}:${libraryEpoch}`;
-    const browsing = navItems.some(item => item.id === view && item.id !== 'home' && item.id !== 'collections') || !!query;
+    const pageRequestKey = `${libraryPageKey}:${libraryPageIndex}`;
+    const browsing = navItems.some(item => item.id === view && !['home', 'collections', 'collecting', 'preorders'].includes(item.id)) || !!query;
     useEffect(() => {
         if (!state.pagedLibrary || !browsing)
             return;
@@ -800,12 +836,17 @@ export default function BlankBox() {
                     return;
                 }
                 setServerPage({ key: pageRequestKey, value });
-            }).catch(cause => { if (!controller.signal.aborted)
-                setPageError((cause as Error).message); }).finally(() => { if (!controller.signal.aborted)
+                if (value.indexStatus === 'building')
+                    setState(current => ({ ...current, browseIndexStatus: 'building' }));
+            }).catch(cause => { if (!controller.signal.aborted) {
+                if (cause instanceof BlankBoxClientError && cause.status === 401)
+                    setLocked(true);
+                setPageError((cause as Error).message);
+            } }).finally(() => { if (!controller.signal.aborted)
                 setPageLoading(false); });
         }, query ? 180 : 0);
         return () => { controller.abort(); clearTimeout(timer); };
-    }, [state.pagedLibrary, state.items, browsing, view, searchQuery, filter, sort, favorites, physicalFormatFilter, genreFilter, activityFilter, physicalView, libraryPageIndex, libraryPageKey, pageRequestKey, query]);
+    }, [state.pagedLibrary, state.catalogRevision, browsing, view, searchQuery, filter, sort, favorites, physicalFormatFilter, genreFilter, activityFilter, physicalView, libraryPageIndex, libraryPageKey, pageRequestKey, libraryEpoch, query]);
     const currentServerPage = serverPage?.key === pageRequestKey ? serverPage.value : null;
     const filtered = useMemo(() => state.pagedLibrary ? (currentServerPage?.items || []) : localFiltered, [state.pagedLibrary, currentServerPage, localFiltered]);
     const physicalShelfGroups = useMemo(() => {
@@ -1137,15 +1178,48 @@ export default function BlankBox() {
         if (editorFocus.section !== 'artwork')
             setEditorRevision(revision => revision + 1);
     } };
-    const resolveReview = async (reviewId: string, policy: ReviewPolicy, targetId?: string, fromDialog = false) => { const v = await act('resolve-review', { reviewId, policy, ...(targetId ? { targetId } : {}) }, policy === 'new-version' ? 'Edition added' : 'Match review saved'); if (v) {
-        if (fromDialog && state.reviewCount <= 1)
-            setSourceReviewOpen(false);
-        else if (!fromDialog)
-            go('import');
-    } };
-    const resolveAllReviews = async (policy: Exclude<ReviewPolicy, 'separate'>, fromDialog = false) => { if (!window.confirm(`Apply this choice to all ${state.reviewCount} proposed matches? You can still edit the consolidated items later.`))
-        return; const v = await act('resolve-all-reviews', { policy }, 'Match review completed'); if (v && fromDialog)
-        setSourceReviewOpen(false); };
+    const submitReview = async (action: string, data: Record<string, unknown>) => {
+        if (reviewSubmitRef.current || reviewWorking)
+            return;
+        reviewSubmitRef.current = true;
+        setReviewSubmitting(true);
+        setSourceReviewOpen(false);
+        const toastId = toast.loading('Saving match choices in the background…');
+        try {
+            const job = await blankBoxClient.action(action, { ...data, background: true });
+            if (!job.id)
+                throw new Error('Unable to start match review. Please retry in Import Media.');
+            reviewResolutionRef.current = { jobId: job.id, toastId };
+            setState(current => ({ ...current, jobs: [{ id: job.id!, type: 'match-review', status: 'queued', done: 0, total: action === 'resolve-review' ? 1 : current.reviewCount } satisfies Job, ...current.jobs.filter(previous => previous.id !== job.id)] }));
+        }
+        catch (cause) {
+            toast.error((cause as Error).message, { id: toastId, action: { label: 'Review matches', onClick: () => { go('import'); setReviewReload(value => value + 1); } } });
+        }
+        finally {
+            reviewSubmitRef.current = false;
+            setReviewSubmitting(false);
+        }
+    };
+    const resolveReview = async (reviewId: string, policy: ReviewPolicy, targetId?: string) => submitReview('resolve-review', { reviewId, policy, ...(targetId ? { targetId } : {}) });
+    const resolveAllReviews = async (policy: Exclude<ReviewPolicy, 'separate'>) => {
+        if (!window.confirm(`Apply this choice to all ${state.reviewCount} proposed matches? You can still edit the consolidated items later.`))
+            return;
+        await submitReview('resolve-all-reviews', { policy });
+    };
+    useEffect(() => {
+        const pending = reviewResolutionRef.current;
+        if (!pending)
+            return;
+        const job = state.jobs.find(value => value.id === pending.jobId);
+        if (!job || ['queued', 'running'].includes(job.status))
+            return;
+        reviewResolutionRef.current = null;
+        if (job.status === 'complete')
+            toast.success(job.message || 'Match choices saved.', { id: pending.toastId });
+        else
+            toast.error('Some match choices could not be saved. Review the remaining matches in Import Media.', { id: pending.toastId, action: { label: 'Review matches', onClick: () => go('import') } });
+        setReviewReload(value => value + 1);
+    }, [state.jobs, go]);
     const fileImport = async (_files: FileList | null) => { toast.info("Use a mounted source to import files into Blank Box."); };
     const scan = async (reviewDiscovered = false) => { const v = await act(reviewDiscovered ? 'auto-copy-scan' : 'scan', { sourceId }); if (v?.id) {
         setScanId(v.id);
@@ -1172,7 +1246,7 @@ export default function BlankBox() {
     const card = (item: MediaItem, wide = false) => { const badge = physicalBadge(item); return <article className={`media-card ${wide ? 'wide' : ''}`} key={item.id}>{librarySelectionMode && libraryView && <label className="media-card-select"><Checkbox checked={librarySelection.has(item.id)} onCheckedChange={checked => setLibrarySelection(previous => { const next = new Set(previous); if (checked)
         next.add(item.id);
     else
-        next.delete(item.id); return next; })}/><span className="sr-only">Select {item.title}</span></label>}<button data-tv onClick={() => void openItem(item)} className="art-button" aria-label={`Open ${item.title}`}><div className={`artwork kind-${item.kind}`}>{item.poster ? <img src={item.poster} alt="" loading="lazy"/> : <span className="no-art">{(() => { const Icon = icons[item.kind]; return <Icon size={38} strokeWidth={1}/>; })()}<strong>{item.title}</strong></span>}<span className="art-shade"/>{badge && <span className="art-tag" title={`Physical format: ${badge.title}`}><badge.Icon size={12}/>{badge.label}</span>}{item.favorite && <span className="art-heart"><Heart size={14} fill="currentColor"/></span>}{item.activity?.status === 'completed' && <span className="art-activity" title={activityLabel(item.kind, 'completed')}><Check size={14}/>{activityLabel(item.kind, 'completed')}</span>}{!!item.digitalPlatforms?.length && <span className="art-digital-record" title={item.digitalPlatforms.map(record => `${record.platform}: ${{ purchased: 'Purchased', redeemed: 'Redeemed', 'code-included': 'Code included' }[record.status]}`).join(' · ')}>Digital record</span>}<span className="card-play"><MediaActionIcon item={item} size={23}/></span>{!!item.progress && <Progress className="watch-progress" value={item.progress * 100}/>}</div></button><div className="card-meta"><button data-tv onClick={() => void openItem(item)}>{item.title}</button><span>{item.year || kindNames[item.kind]}<i>·</i>{collectionLabel(item)}</span></div></article>; };
+        next.delete(item.id); return next; })}/><span className="sr-only">Select {item.title}</span></label>}<button data-tv onClick={() => void openItem(item)} className="art-button" aria-label={`Open ${item.title}`}><div className={`artwork kind-${item.kind}`}>{item.poster ? <img src={item.poster} alt="" loading="lazy"/> : <span className="no-art">{(() => { const Icon = icons[item.kind]; return <Icon size={38} strokeWidth={1}/>; })()}<strong>{item.title}</strong></span>}<span className="art-shade"/>{badge && <span className="art-tag" title={`Physical format: ${badge.title}`}><badge.Icon size={12}/>{badge.label}</span>}{item.favorite && <span className="art-heart"><Heart size={14} fill="currentColor"/></span>}{item.activity?.status === 'completed' && <span className="art-activity" title={activityLabel(item.kind, 'completed')}><Check size={14}/>{activityLabel(item.kind, 'completed')}</span>}{!!item.digitalPlatforms?.length && <span className="art-digital-record" title={item.digitalPlatforms.map(record => `${record.platform}: ${{ purchased: 'Purchased', redeemed: 'Redeemed', 'code-included': 'Code included' }[record.status]}`).join(' · ')}>Digital record</span>}<span className="card-play"><MediaActionIcon item={item} size={23}/></span>{!!item.progress && <Progress className="watch-progress" value={item.progress * 100}/>}</div></button><div className="card-meta"><button data-tv onClick={() => void openItem(item)}>{item.title}</button><CardAvailability item={item}/></div></article>; };
     const memoryPhotos = useMemo(() => state.items.filter(item => item.kind === 'photo' && !item.sample && (item.poster || item.backdrop || item.sources.some(source => source.type === 'local' && source.url))), [state.items]);
     const memoryPhoto = !memoryPhotos.length ? null : memoryPhotos[Math.floor(photoSeed * memoryPhotos.length)];
     const memoryPhotoUrl = memoryPhoto?.poster || memoryPhoto?.backdrop || memoryPhoto?.sources.find(source => source.type === 'local' && source.url)?.url;
@@ -1191,7 +1265,7 @@ export default function BlankBox() {
         return; const timer = window.setInterval(() => setHeroIndex(index => (index + 1) % heroPool.length), 8000); return () => window.clearInterval(timer); }, [view, heroPool.length]);
     const customizeHome = () => { setSettingsTab('general'); go('settings'); window.setTimeout(() => document.querySelector('.home-customization-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100); };
     const activeJobs = state.jobs.filter(j => ['queued', 'running'].includes(j.status));
-    const libraryView = navItems.some(item => item.id === view && item.id !== 'home' && item.id !== 'collections') || !!query;
+    const libraryView = navItems.some(item => item.id === view && !['home', 'collections', 'collecting', 'preorders'].includes(item.id)) || !!query;
     const collectionSummary = useMemo(() => state.summary || summarizeCollection(state.items), [state.summary, state.items]);
     const recentlyAdded = useMemo(() => [...state.items].sort((left, right) => mediaAddedAt(right).localeCompare(mediaAddedAt(left))).slice(0, 5), [state.items]);
     const recentlyReleased = useMemo(() => state.items.filter(item => item.releaseDate && hasDigitalOrConnectedSource(item)).sort((left, right) => mediaReleaseAt(right).localeCompare(mediaReleaseAt(left))).slice(0, 5), [state.items]);
@@ -1243,17 +1317,24 @@ export default function BlankBox() {
                 return null; return <section className="section" key={row}><div className="section-heading"><div><h2>{option.label}</h2>{row === 'recently-released' && <p className="muted small">Newer releases available from your digital files and connected libraries.</p>}</div><button data-tv className="text-button" onClick={() => go(row === 'recently-added' || row === 'recently-released' ? 'library' : row === 'movies' ? 'movie' : row === 'photos' ? 'photo' : row === 'books' ? 'book' : row === 'comics' ? 'comic' : row === 'games' ? 'game' : row)}>View {row === 'recently-added' || row === 'recently-released' ? 'library' : 'all'} <ChevronRight size={15}/></button></div><div className="poster-grid home-posters">{items.map(item => card(item))}</div>{!state.items.length && <p className="muted">Your next favorite is waiting to be added.</p>}</section>; })}
  <div className={`home-bottom ${hasLibrarySource ? 'home-bottom-single' : ''}`}><section className="memories-tile"><img src={memoryPhotoUrl || '/art/coast.jpg'} alt={memoryPhoto ? memoryPhoto.title : 'A still lake surrounded by a forest'} loading="lazy"/><div><span className="eyebrow">{memoryPhoto ? 'FROM YOUR PHOTOS' : 'THE IRREPLACEABLE COLLECTION'}</span><h2>{memoryPhoto ? 'Your memories, close at hand.' : <>The good old days,<br />always close.</>}</h2><button data-tv className="glass-button" onClick={() => go('photo')}><Images size={16}/>Photos & Memories <ChevronRight size={15}/></button></div></section>{!hasLibrarySource && <section className="bring-home"><span className="outlined-icon"><FolderInput size={23}/></span><h2>Bring your library home.</h2><p>Discs. Drives. Phones. Cameras.<br />One private place for what matters.</p><button data-tv className="text-button accent" onClick={() => go('import')}>Add your first source <Plus size={17}/></button></section>}</div>
  <section className="section service-strip"><div className="section-heading"><h2>Your services, within reach</h2><button data-tv className="text-button" onClick={() => go('services')}>View all <ChevronRight size={15}/></button></div><div className="service-row">{services.slice(0, 4).map(s => <a data-tv href={s.url} target="_blank" rel="noopener noreferrer" key={s.name}><span style={{ color: s.color }}>{s.mark}</span><ArrowUpRight size={15}/></a>)}</div></section><div className="home-footnote"><LockKeyhole size={13}/>{'Your media stays in Blank Box. Your original source files remain unchanged.'}<button onClick={() => { setSettingsTab('activity'); go('settings'); }}>About V1</button></div></>}
- {view === 'collecting' && !query && (collectingReady ? <CollectionPlanner items={state.items} mode={state.mode} onChange={async () => { await reload(); }}/> : <section className="panel"><h2>Collection planning is in the next Core update</h2><button className="subtle-button" onClick={() => go('physical')}>Return to Physical Media</button></section>)}
+ {view === 'collecting' && !query && (collectingReady ? <CollectionPlanner items={state.items} mode={state.mode} onChange={async () => { await reload(); }} onPreorder={state.preordersAvailable ? target => { setPreorderIntention(target); go('preorders'); } : undefined}/> : <section className="panel"><h2>Collection planning requires an updated Blank Box Core</h2><button className="subtle-button" onClick={() => go('physical')}>Return to Physical Media</button></section>)}
+ {view === 'preorders' && !query && (state.preordersAvailable ? <PreorderTracker intention={preorderIntention} onIntentionUsed={() => setPreorderIntention(null)} onChange={async () => { await reload(); }} onOpenItem={id => { void blankBoxClient.item(id).then(openItem).catch(cause => toast.error((cause as Error).message)); }}/> : <section className="panel"><h2>Preorders require Blank Box Core 1.0.1 or later</h2><button className="subtle-button" onClick={() => go('physical')}>Return to Physical Media</button></section>)}
  {libraryView && <>
-  <div className={`page-heading ${physicalBrowsing ? 'physical-page-heading' : 'library-page-heading'}`}><div><h1>{query ? `Results for “${query}”` : navigationLabels[view]}</h1>{(view !== 'library' || !!query) && <p>{view === 'physical' && !query ? `${state.physicalInventory.titles} ${state.physicalInventory.titles === 1 ? 'title' : 'titles'} · ${state.physicalInventory.packages} ${state.physicalInventory.packages === 1 ? 'physical item' : 'physical items'} · ${state.physicalInventory.copies} ${state.physicalInventory.copies === 1 ? 'copy' : 'copies'}` : `${state.pagedLibrary ? (currentServerPage?.total || 0) : filtered.length} ${(state.pagedLibrary ? (currentServerPage?.total || 0) : filtered.length) === 1 ? 'title' : 'titles'}`}{''}</p>}</div><div className="page-heading-actions">{query && <button className="primary-button" onClick={() => openMatch(null, query)}><Search size={16}/>Find title & services</button>}{physicalBrowsing ? <button className="primary-button" onClick={openPhysical}><Plus size={17}/>Add Physical Item</button> : view === 'physical' ? <>{collectingReady && <button className="subtle-button" onClick={() => go('collecting')}><Plus size={16}/>Intend to Buy</button>}<button className="text-button" onClick={openPhysicalPreferences}><Settings2 size={16}/>Manage locations</button><button className="subtle-button" onClick={openPhysical}><Plus size={17}/>Add a physical item</button></> : <button className="subtle-button" onClick={() => go('import')}><Plus size={16}/>Add media</button>}</div></div>
+  <div className={`page-heading ${physicalBrowsing ? 'physical-page-heading' : 'library-page-heading'}`}><div><h1>{query ? `Results for “${query}”` : navigationLabels[view]}</h1>{(view !== 'library' || !!query) && <p>{view === 'physical' && !query ? `${state.physicalInventory.titles} ${state.physicalInventory.titles === 1 ? 'title' : 'titles'} · ${state.physicalInventory.packages} ${state.physicalInventory.packages === 1 ? 'physical item' : 'physical items'} · ${state.physicalInventory.copies} ${state.physicalInventory.copies === 1 ? 'copy' : 'copies'}` : `${state.pagedLibrary ? (currentServerPage?.total || 0) : filtered.length} ${(state.pagedLibrary ? (currentServerPage?.total || 0) : filtered.length) === 1 ? 'title' : 'titles'}`}{''}</p>}</div><div className="page-heading-actions">{query && <button className="primary-button" onClick={() => openMatch(null, query)}><Search size={16}/>Find title & services</button>}{physicalBrowsing ? <button className="primary-button" onClick={openPhysical}><Plus size={17}/>Add Physical Item</button> : view === 'physical' ? <>{collectingReady && <button className="subtle-button" onClick={() => go('collecting')}><Plus size={16}/>Wishlist</button>}<button className="text-button" onClick={openPhysicalPreferences}><Settings2 size={16}/>Manage locations</button><button className="subtle-button" onClick={openPhysical}><Plus size={17}/>Add a physical item</button></> : <>{view === 'library' && state.preordersAvailable && <button className="subtle-button" onClick={() => go('preorders')}><Package size={16}/>Preorders</button>}<button className="subtle-button" onClick={() => go('import')}><Plus size={16}/>Add media</button></>}</div></div>
   {view === 'library' && !query && <LibraryOverview state={state} summary={collectionSummary} onOpen={destination => destination === 'library' ? document.querySelector('.collection-toolbar')?.scrollIntoView({ behavior: 'smooth' }) : go(destination)}/>}
-  {physicalBrowsing ? <PhysicalBrowseControls category={filter} onCategory={value => { setFilter(value); setPhysicalFormatFilter('all'); }} format={physicalFormatFilter} formats={physicalFormatOptions} onFormat={setPhysicalFormatFilter} genre={genreFilter} genres={(state.facets?.genres || [...new Set(state.items.flatMap(itemGenres))].sort())} onGenre={setGenreFilter} status={activityFilter} onStatus={setActivityFilter} sort={sort} onSort={setSort} favorites={favorites} onFavorites={() => setFavorites(!favorites)} view={physicalView} onView={setPhysicalView} local={true} onLocations={openPhysicalPreferences} onCollections={() => go('collections')} onIntendToBuy={collectingReady ? () => go('collecting') : undefined}/> : <>
-  <div className={`collection-toolbar ${!query && !['library', 'physical'].includes(view) ? 'category-only' : ''}`}>{(query || view === 'library' || view === 'physical') && <Tabs value={filter} onValueChange={value => { setFilter(value); setPhysicalFormatFilter('all'); }} className="category-tabs"><TabsList className="filter-tabs">{[['all', 'All media'], ...Object.entries(kindNames)].map(([id, label]) => <TabsTrigger key={id} value={id}>{label}</TabsTrigger>)}</TabsList></Tabs>}<div className="library-control-row">{<div className="library-organization-filters"><label><span>Genre</span><select value={genreFilter} onChange={event => setGenreFilter(event.target.value)}><option value="">All genres</option>{(state.facets?.genres || [...new Set(state.items.flatMap(itemGenres))].sort()).map(value => <option key={value} value={value}>{value}</option>)}</select></label><label><span>Local status</span><select value={activityFilter} onChange={event => setActivityFilter(event.target.value as ActivityStatus | '')}><option value="">Any status</option><option value="not-started">Unwatched / Not started</option><option value="in-progress">In progress</option><option value="completed">Watched / Completed</option></select></label><button className="text-button" onClick={() => go('collections')}>Browse collections →</button></div>}<div className="collection-options"><button className={`favorite-filter ${favorites ? 'on' : ''}`} onClick={() => setFavorites(!favorites)} aria-label="Show favorites" aria-pressed={favorites}><Heart size={17} fill={favorites ? 'currentColor' : 'none'}/></button><Select value={sort} onValueChange={setSort}><SelectTrigger aria-label="Sort media"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="recent">Recently added</SelectItem><SelectItem value="az">Title A–Z</SelectItem><SelectItem value="year">Newest release</SelectItem><SelectItem value="edition">Edition A–Z</SelectItem></SelectContent></Select></div></div></div>
+  {physicalBrowsing ? <PhysicalBrowseControls category={filter} onCategory={value => { setFilter(value); setPhysicalFormatFilter('all'); }} format={physicalFormatFilter} formats={physicalFormatOptions} onFormat={setPhysicalFormatFilter} genre={genreFilter} genres={(state.facets?.genres || [...new Set(state.items.flatMap(itemGenres))].sort())} onGenre={setGenreFilter} status={activityFilter} onStatus={setActivityFilter} sort={sort} onSort={setSort} favorites={favorites} onFavorites={() => setFavorites(!favorites)} view={physicalView} onView={setPhysicalView} local={true} onLocations={openPhysicalPreferences} onCollections={() => go('collections')} onIntendToBuy={collectingReady ? () => go('collecting') : undefined} onPreorders={state.preordersAvailable ? () => go('preorders') : undefined}/> : <>
+  <div className={`collection-toolbar ${!query && !['library', 'physical'].includes(view) ? 'category-only' : ''}`}>{(query || view === 'library' || view === 'physical') && <Tabs value={filter} onValueChange={value => { if (value === 'collecting' || value === 'preorders')
+                    go(value);
+                else {
+                    setFilter(value);
+                    setPhysicalFormatFilter('all');
+                } }} className="category-tabs"><TabsList className="filter-tabs">{[['all', 'All media'], ...Object.entries(kindNames)].map(([id, label]) => <TabsTrigger key={id} value={id}>{label}</TabsTrigger>)}{collectingReady && <TabsTrigger value="collecting">Wishlist</TabsTrigger>}{state.preordersAvailable && <TabsTrigger value="preorders">Preorders</TabsTrigger>}</TabsList></Tabs>}<div className="library-control-row">{<div className="library-organization-filters"><label><span>Genre</span><select value={genreFilter} onChange={event => setGenreFilter(event.target.value)}><option value="">All genres</option>{(state.facets?.genres || [...new Set(state.items.flatMap(itemGenres))].sort()).map(value => <option key={value} value={value}>{value}</option>)}</select></label><label><span>Local status</span><select value={activityFilter} onChange={event => setActivityFilter(event.target.value as ActivityStatus | '')}><option value="">Any status</option><option value="not-started">Unwatched / Not started</option><option value="in-progress">In progress</option><option value="completed">Watched / Completed</option></select></label><button className="text-button" onClick={() => go('collections')}>Browse collections →</button></div>}<div className="collection-options"><button className={`favorite-filter ${favorites ? 'on' : ''}`} onClick={() => setFavorites(!favorites)} aria-label="Show favorites" aria-pressed={favorites}><Heart size={17} fill={favorites ? 'currentColor' : 'none'}/></button><Select value={sort} onValueChange={setSort}><SelectTrigger aria-label="Sort media"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="recent">Recently added</SelectItem><SelectItem value="az">Title A–Z</SelectItem><SelectItem value="year">Newest release</SelectItem><SelectItem value="edition">Edition A–Z</SelectItem></SelectContent></Select></div></div></div>
   </>}
   {<div className="library-bulk-controls"><button className="subtle-button" type="button" onClick={() => { setLibrarySelectionMode(!librarySelectionMode); setLibrarySelection(new Set()); }}>{librarySelectionMode ? 'Done selecting' : 'Select items'}</button>{librarySelectionMode && <><button className="subtle-button" type="button" onClick={() => setLibrarySelection(new Set(pageItems.map(item => item.id)))}>Select this page</button><button className="text-button" type="button" onClick={() => setLibrarySelection(new Set())}>Clear</button><span className="muted small">{selectedPageItems.length} selected on this page · sorting is above</span><button className="subtle-button" type="button" disabled={busy || selectedPageItems.length !== 1} onClick={() => void openItem(selectedPageItems[0])}>Review</button><button className="subtle-button" type="button" disabled={busy || selectedPageItems.length !== 2} onClick={() => void bulkConsolidate()}>Consolidate two</button><button className="subtle-button" type="button" disabled={busy || !selectedPageItems.length} onClick={() => { setLibraryAttachRows([...selectedPageItems]); setLibraryAttachQuery(""); setLibraryAttachResults([]); setLibraryAttachTarget(null); setLibraryAttachError(""); }}>Attach selected to title</button><button className="subtle-button" type="button" disabled={busy || !selectedPageItems.length} onClick={() => void bulkRenameTitles()}>Rename catalog titles</button><button className="subtle-button" type="button" disabled={busy || !selectedPageItems.length} onClick={() => void bulkRemoveRecords()}>Remove records</button></>}</div>}
-  {pageError && <p role="alert" className="error-text">{pageError}</p>}
+  {pageError && <p role="alert" className="error-text">{pageError} <button className="text-button" onClick={() => setLibraryEpoch(value => value + 1)}>Try again</button></p>}
+  {state.pagedLibrary && currentServerPage && (pageLoading || currentServerPage.indexStatus === 'building') && <p role="status" className="muted"><Loader2 size={14} className="animate-spin"/> Updating library…</p>}
   {physicalBrowsing && <PhysicalPackages revision={state.items} onChanged={() => void reload()} onOpenItem={id => { void blankBoxClient.item(id).then(openItem).catch(cause => toast.error((cause as Error).message)); }} onCount={setBoxSetCount} kind={filter} format={physicalFormatFilter} favorites={favorites} genre={genreFilter} status={activityFilter}/>}
-  {state.pagedLibrary && (pageLoading || !currentServerPage || currentServerPage.indexStatus === 'building') ? <p role="status" className="muted">Loading library page…</p> : filtered.length ? view === 'physical' && !query && physicalView === 'shelves' ? <div className="physical-shelf-groups">{shelfPageGroups.map(group => <section className="physical-shelf-group" key={group.location}><div className="physical-shelf-heading"><h2>{group.location}</h2><span>{group.copies} {group.copies === 1 ? 'copy' : 'copies'}</span></div><div className="poster-grid library-grid">{group.items.map(row => <div className="physical-shelf-entry" key={row.item.id}>{card(row.item)}{row.copies > 1 && <small>{row.copies} copies here</small>}</div>)}</div></section>)}</div> : <div className={`poster-grid library-grid ${view === 'photo' ? 'photo-grid' : ''}`}>{pageItems.map(i => card(i))}</div> : physicalBrowsing && boxSetCount > 0 ? <p className="muted">Included titles appear inside each box set and remain searchable in My Library. Individual physical items appear here.</p> : <div className="empty-panel"><span className="outlined-icon">{view === 'physical' ? <Disc3 /> : view === 'movie' ? <Film /> : view === 'tv' ? <Tv /> : view === 'book' || view === 'comic' ? <BookOpen /> : view === 'game' ? <Gamepad2 /> : view === 'music' ? <Music2 /> : <Library />}</span><h2>{query ? 'Nothing here by that name.' : favorites ? 'Your favorites will live here.' : view === 'physical' && physicalFormatFilter !== 'all' ? 'No copies in this format.' : view === 'physical' ? 'Start your Physical Media.' : 'Let’s make this yours.'}</h2><p>{query ? 'Try a different title, year, or format.' : view === 'physical' && physicalFormatFilter !== 'all' ? 'Choose another format or add a physical item.' : view === 'physical' ? 'Add your physical media, including its format, edition, and where you keep it.' : view === 'movie' ? 'Add a movie file, connect a media server, or catalog a physical item.' : view === 'tv' ? 'Add a show or connect an existing TV library.' : view === 'book' ? 'Bring in books, PDFs, and EPUBs.' : view === 'comic' ? 'Catalog physical issues and digital comic files.' : view === 'game' ? 'Catalog games by platform, format, and edition.' : view === 'music' ? 'Add music files from your collection.' : view === 'photo' ? 'Bring your photos and home videos into one place.' : 'Add some media to start your collection.'}</p><button className="primary-button" onClick={() => query ? setQuery('') : view === 'physical' ? openPhysical() : go('import')}>{query ? 'Clear search' : 'Add to your library'}<Plus size={16}/></button></div>}
+  {state.pagedLibrary && (!currentServerPage || !currentServerPage.items.length && (pageLoading || currentServerPage.indexStatus === 'building')) ? <p role="status" className="muted">Loading library page…</p> : filtered.length ? view === 'physical' && !query && physicalView === 'shelves' ? <div className="physical-shelf-groups">{shelfPageGroups.map(group => <section className="physical-shelf-group" key={group.location}><div className="physical-shelf-heading"><h2>{group.location}</h2><span>{group.copies} {group.copies === 1 ? 'copy' : 'copies'}</span></div><div className="poster-grid library-grid">{group.items.map(row => <div className="physical-shelf-entry" key={row.item.id}>{card(row.item)}{row.copies > 1 && <small>{row.copies} copies here</small>}</div>)}</div></section>)}</div> : <div className={`poster-grid library-grid ${view === 'photo' ? 'photo-grid' : ''}`}>{pageItems.map(i => card(i))}</div> : physicalBrowsing && boxSetCount > 0 ? <p className="muted">Included titles appear inside each box set and remain searchable in My Library. Individual physical items appear here.</p> : <div className="empty-panel"><span className="outlined-icon">{view === 'physical' ? <Disc3 /> : view === 'movie' ? <Film /> : view === 'tv' ? <Tv /> : view === 'book' || view === 'comic' ? <BookOpen /> : view === 'game' ? <Gamepad2 /> : view === 'music' ? <Music2 /> : <Library />}</span><h2>{query ? 'Nothing here by that name.' : favorites ? 'Your favorites will live here.' : view === 'physical' && physicalFormatFilter !== 'all' ? 'No copies in this format.' : view === 'physical' ? 'Start your Physical Media.' : 'Let’s make this yours.'}</h2><p>{query ? 'Try a different title, year, or format.' : view === 'physical' && physicalFormatFilter !== 'all' ? 'Choose another format or add a physical item.' : view === 'physical' ? 'Add your physical media, including its format, edition, and where you keep it.' : view === 'movie' ? 'Add a movie file, connect a media server, or catalog a physical item.' : view === 'tv' ? 'Add a show or connect an existing TV library.' : view === 'book' ? 'Bring in books, PDFs, and EPUBs.' : view === 'comic' ? 'Catalog physical issues and digital comic files.' : view === 'game' ? 'Catalog games by platform, format, and edition.' : view === 'music' ? 'Add music files from your collection.' : view === 'photo' ? 'Bring your photos and home videos into one place.' : 'Add some media to start your collection.'}</p><button className="primary-button" onClick={() => query ? setQuery('') : view === 'physical' ? openPhysical() : go('import')}>{query ? 'Clear search' : 'Add to your library'}<Plus size={16}/></button></div>}
   {libraryEntries > 60 && <nav className="collection-paging library-paging" aria-label="Library pages"><button className="subtle-button" disabled={!libraryPageIndex} onClick={() => changeLibraryPage(libraryPageIndex - 1)}>Previous</button><span>Page {libraryPageIndex + 1} of {Math.ceil(libraryEntries / 60)} · {libraryEntries.toLocaleString()} {shelfBrowsing ? 'location entries' : 'titles'}</span><button className="subtle-button" disabled={(libraryPageIndex + 1) * 60 >= libraryEntries} onClick={() => changeLibraryPage(libraryPageIndex + 1)}>Next</button></nav>}
   {view === 'physical' && <div className="note"><Disc3 size={19}/><p>Physical Media keeps physical copies visible inside your unified library. Saved physical locations tell you where each item actually lives. Playback still requires a supported player or a separately authorized digital copy.</p></div>}
  </>}
@@ -1285,7 +1366,7 @@ export default function BlankBox() {
   <button className="primary-button" onClick={commit} disabled={busy || !!activeJobs.length || !selectedScanRows.length}><ArrowDownToLine size={17}/>Copy {selectedScanRows.length} selected files</button>
  </section>}
  {<div id="import-disc"><DiscImport items={state.items} pagedLibrary={state.pagedLibrary} jobs={state.jobs} blocked={busy || !!activeJobs.length} preferredDrive={state.settings.opticalDrive} onStarted={reload} onCataloged={item => { go('physical'); setSelected(item); }} onCatalogPhysical={openPhysicalCd} onScanPhysical={() => setCameraIntakeOpen(true)} onManagePacks={() => { setSettingsTab('metadata'); go('settings'); window.setTimeout(() => document.getElementById('metadata-pack-settings')?.scrollIntoView({ behavior: 'smooth' }), 0); }}/></div>}
- <ReconciliationPanel reviews={state.reviews} reviewCount={state.reviewCount} busy={busy} onResolve={(reviewId, policy, targetId) => void resolveReview(reviewId, policy, targetId)} onResolveAll={policy => void resolveAllReviews(policy)}/>
+ <ReconciliationPanel loading={reviewsLoading} error={reviewsError} onRetry={() => setReviewReload(value => value + 1)} reviews={state.reviews} reviewCount={state.reviewCount} busy={busy || reviewWorking} working={reviewWorking} onResolve={(reviewId, policy, targetId) => void resolveReview(reviewId, policy, targetId)} onResolveAll={policy => void resolveAllReviews(policy)}/>
  <ImportActivity jobs={state.jobs}/><div className="note"><Info size={19}/><p>{'Indexing leaves your source media in place. Managed copying handles selected files after count and size review. Audio-CD import remains a distinct Alpha path; protected DVD and Blu-ray copying or Live Disc playback are not included.'}</p></div></>}
  {!query && view === 'services' && <><div className="page-heading"><div><h1>Services & Connections</h1><p>Your personal collection and the services you enjoy, within reach.</p></div></div><h2 className="standalone-heading">Your home services</h2><div className="home-service-grid">{homeServices.map(s => <div className="home-service" key={s.name}><span className="source-icon peach"><s.icon size={24}/></span><div><h2>{s.name}</h2><p>{s.description}</p></div>{safeUrl(state.settings[s.key] as string) ? <a className="subtle-button" href={safeUrl(state.settings[s.key] as string)} target="_blank" rel="noopener noreferrer">Open<ArrowUpRight size={16}/></a> : <button className="subtle-button" onClick={() => { setSettingsTab('connections'); go('settings'); }}>Connect<Plus size={16}/></button>}</div>)}</div><h2 className="standalone-heading">Streaming & entertainment</h2><div className="services-grid">{services.map(s => <a data-tv className="service-tile" href={s.url} target="_blank" rel="noopener noreferrer" key={s.name}><span className="service-wordmark" style={{ color: s.color }}>{s.mark}</span><div><strong>{s.name}</strong><ArrowUpRight size={18}/></div><small>Open official website</small></a>)}</div><div className="note"><ArrowUpRight size={19}/><p>Services open in their own websites. Their subscriptions, sign-ins, and device support still apply. Blank Box does not import their catalogs or viewing history.</p></div></>}
  {!query && view === 'storage' && <>
@@ -1300,24 +1381,21 @@ export default function BlankBox() {
   <div className="note"><Info size={19}/><p>Verified backup covers Blank Box’s catalog and managed media only. It does not copy unimported source folders, your whole computer, or Jellyfin, Plex, and Immich databases. Test a restore before relying on it.</p></div>
  </>}
  {!query && view === 'settings' && <>
-  <div className="page-heading"><div><h1>{navigationLabels.settings}</h1><p>Choose an area to find the controls you need.</p></div><span className="quiet-badge">Blank Box {state.version || BLANKBOX_VERSION} · {BLANKBOX_CHANNEL}</span></div>
+  <div className="page-heading"><div><h1>{navigationLabels.settings}</h1><p>Choose an area to find the controls you need.</p></div><div className="settings-heading-meta"><span className="quiet-badge">Blank Box {state.version || BLANKBOX_VERSION} · {BLANKBOX_CHANNEL}</span><a href="https://discord.com/invite/fD8k4sn9sk" target="_blank" rel="noopener noreferrer">Join the Blank Box community on Discord <ArrowUpRight size={14}/></a></div></div>
   {settingsDirty && <div className="settings-unsaved" role="status"><span><strong>Unsaved changes</strong><small>Your choices are not active until you save them.</small></span><div><button className="text-button" onClick={() => setForm(state.settings)}>Discard</button><button className="primary-button" disabled={busy || !form.name.trim()} onClick={() => void saveSettings()}>Save changes <Check size={16}/></button></div></div>}
   <nav className="settings-tabs" role="tablist" aria-label="Settings sections" onKeyDown={event => { if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key))
                 return; event.preventDefault(); const tabs = settingsTabs.filter(tab => true || !['devices', 'metadata'].includes(tab.id)); const index = tabs.findIndex(tab => tab.id === settingsTab); const next = event.key === 'Home' ? tabs[0] : event.key === 'End' ? tabs[tabs.length - 1] : tabs[(index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length]; setSettingsTab(next.id); requestAnimationFrame(() => document.getElementById(`settings-tab-${next.id}`)?.focus()); }}>{settingsTabs.filter(tab => true || !['devices', 'metadata'].includes(tab.id)).map(tab => { const Icon = tab.icon; return <button key={tab.id} id={`settings-tab-${tab.id}`} type="button" role="tab" aria-selected={settingsTab === tab.id} aria-controls={`settings-panel-${tab.id}`} tabIndex={settingsTab === tab.id ? 0 : -1} className={settingsTab === tab.id ? 'active' : ''} onClick={() => setSettingsTab(tab.id)}><Icon size={17}/>{tab.label}</button>; })}</nav>
   <div id={`settings-panel-${settingsTab}`} role="tabpanel" aria-labelledby={`settings-tab-${settingsTab}`} className="settings-layout settings-tab-content">
     {settingsTab === 'general' && <section className="panel"><h2>Your household</h2>{field('Library name', 'name', 'Your household')}{!isMobile && <div className="setting-row"><span><strong>TV mode</strong><small>Enlarges the interface and adds remote-friendly focus.</small></span><Switch checked={activeTvMode} aria-label="TV mode" onCheckedChange={toggleTvMode}/></div>}<div className="setting-row"><span><strong>Helpful tips</strong><small>Short, dismissible explanations on import and physical collection screens.</small></span><Switch checked={form.helpTipsEnabled} aria-label="Show helpful tips" onCheckedChange={helpTipsEnabled => setForm({ ...form, helpTipsEnabled })}/></div><div className="settings-actions"><button className="primary-button" disabled={busy || !form.name.trim()} onClick={() => saveSettings()}>Save household <Check size={17}/></button><button className="text-button" onClick={() => { setForm(state.settings); setOnboarding(true); }}>Run setup again <ChevronRight size={16}/></button></div></section>}
     {settingsTab === 'general' && <OIDCAccountSettings />}
-    {settingsTab === 'connections' && <details className="settings-disclosure" open><summary><span><strong>Service connections</strong><small>Jellyfin, Plex, Immich, and private access</small></span><ChevronDown size={18}/></summary><div className="settings-disclosure-body"><p className="muted small">Connect catalogs you already operate. Blank Box remains the ownership layer and opens playback in the source service. <a href="/downloads/guides/PLAYBACK.md" target="_blank" rel="noopener noreferrer">New to Jellyfin or Plex? Read the playback guide.</a> <a href="/downloads/guides/CONNECTION-KEYS.md" target="_blank" rel="noopener noreferrer">How to get a Jellyfin API key or Plex token.</a></p>{field('Jellyfin address', 'jellyfinUrl', 'http://blank-box:8096')}{field('Plex server address', 'plexUrl', 'http://blank-box:32400')}{field('Immich address', 'immichUrl', 'http://blank-box:2283')}{field('Private remote address', 'remoteUrl', 'https://remote.example.com')}<button className="primary-button" disabled={busy} onClick={() => saveSettings()}>Save connections <Check size={17}/></button>{<><div className="connection-extra"><h3>Bring in your Jellyfin catalog</h3><p className="muted small">Read movie, series, and music metadata. Playback opens Jellyfin. The key stays in Blank Box.</p><label className="field"><span>Jellyfin API key</span><input type="password" autoComplete="off" value={jellyKey} onChange={e => setJellyKey(e.target.value)} placeholder="Create a key in the Jellyfin dashboard"/></label><a className="text-button connection-key-guide" href="/downloads/guides/CONNECTION-KEYS.md" target="_blank" rel="noopener noreferrer">How to create a Jellyfin API key <ArrowUpRight size={14}/></a><button className="subtle-button" disabled={busy || !form.jellyfinUrl || !jellyKey} onClick={async () => { const v = await act('jellyfin', { url: form.jellyfinUrl, key: jellyKey }, 'Jellyfin catalog added'); if (v)
-                setJellyKey(''); }}>Sync Jellyfin <RefreshCw size={16}/></button></div><div className="connection-extra"><h3>Bring in your Plex catalog</h3><p className="muted small">Read movie, series, and album metadata. Playback opens Plex. The token stays in Blank Box and is excluded from portable backups.</p><label className="field"><span>Plex token</span><input type="password" autoComplete="off" value={plexKey} onChange={e => setPlexKey(e.target.value)} placeholder="Use a token from your Plex account"/></label><a className="text-button connection-key-guide" href="/downloads/guides/CONNECTION-KEYS.md" target="_blank" rel="noopener noreferrer">How to find a Plex token <ArrowUpRight size={14}/></a><button className="subtle-button" disabled={busy || !form.plexUrl || !plexKey} onClick={async () => { const v = await act('plex', { url: form.plexUrl, key: plexKey }, 'Plex catalog added'); if (v)
+    {settingsTab === 'connections' && <details className="settings-disclosure" open><summary><span><strong>Service connections</strong><small>Jellyfin, Plex, Immich, and private access</small></span><ChevronDown size={18}/></summary><div className="settings-disclosure-body"><p className="muted small">Connect catalogs you already operate. Blank Box remains the ownership layer and opens playback in the source service. <a href="/downloads/guides/PLAYBACK.md" target="_blank" rel="noopener noreferrer">New to Jellyfin or Plex? Read the playback guide.</a> <a href="/downloads/guides/CONNECTION-KEYS.md" target="_blank" rel="noopener noreferrer">How to get a Jellyfin API key or Plex token.</a></p>{field('Jellyfin address', 'jellyfinUrl', 'http://blank-box:8096')}{field('Plex server address', 'plexUrl', 'http://blank-box:32400')}{field('Immich address', 'immichUrl', 'http://blank-box:2283')}{field('Private remote address', 'remoteUrl', 'https://remote.example.com')}<button className="primary-button" disabled={busy} onClick={() => saveSettings()}>Save connections <Check size={17}/></button>{<><div className="connection-extra"><h3>Bring in your Jellyfin catalog</h3><p className="muted small">Read movie, series, and music metadata. Playback opens Jellyfin. The key stays in Blank Box.</p><label className="field"><span>Jellyfin API key</span><input type="password" autoComplete="off" value={jellyKey} onChange={e => setJellyKey(e.target.value)} placeholder="Create a key in the Jellyfin dashboard"/></label><a className="text-button connection-key-guide" href="/downloads/guides/CONNECTION-KEYS.md" target="_blank" rel="noopener noreferrer">How to create a Jellyfin API key <ArrowUpRight size={14}/></a><button className="subtle-button" disabled={busy || !form.jellyfinUrl || !jellyKey} onClick={async () => { const v = await act('jellyfin', { url: form.jellyfinUrl, key: jellyKey }, 'Jellyfin sync started'); if (v)
+                setJellyKey(''); }}>Sync Jellyfin <RefreshCw size={16}/></button></div><div className="connection-extra"><h3>Bring in your Plex catalog</h3><p className="muted small">Read movie, series, and album metadata. Playback opens Plex. The token stays in Blank Box and is excluded from portable backups.</p><label className="field"><span>Plex token</span><input type="password" autoComplete="off" value={plexKey} onChange={e => setPlexKey(e.target.value)} placeholder="Use a token from your Plex account"/></label><a className="text-button connection-key-guide" href="/downloads/guides/CONNECTION-KEYS.md" target="_blank" rel="noopener noreferrer">How to find a Plex token <ArrowUpRight size={14}/></a><button className="subtle-button" disabled={busy || !form.plexUrl || !plexKey} onClick={async () => { const v = await act('plex', { url: form.plexUrl, key: plexKey }, 'Plex sync started'); if (v)
                 setPlexKey(''); }}>Sync Plex <RefreshCw size={16}/></button></div></>}</div></details>}
-    {settingsTab === 'connections' && <><StreamingServicesEditor value={form} onChange={setForm}/><button className="primary-button" disabled={busy} onClick={() => void saveSettings()}>Save settings</button></>}
     {settingsTab === 'collection' && <section className="panel"><h2>Automatic library refresh</h2><p className="muted small">Connected catalogs can refresh without copying media. Configured folders can be checked automatically for new or changed files. Files stay in place, and matches require review.</p><div className="setting-row"><span><strong>Refresh connected catalogs</strong><small>Update Jellyfin and Plex metadata without copying media files.</small></span><Switch checked={form.autoProviderRefresh} aria-label="Refresh connected catalogs automatically" onCheckedChange={v => setForm({ ...form, autoProviderRefresh: v })}/></div><div className="setting-row"><span><strong>Monitor configured media folders</strong><small>Check movies, TV, music, books, comics, photos, and files in place. New or changed files need two stable observations at least a minute apart, then appear in Import Media for review. Missing drives keep their catalog links.</small></span><Switch checked={form.autoSourceIndex} aria-label="Monitor configured media folders" onCheckedChange={v => setForm({ ...form, autoSourceIndex: v })}/></div><div className="setting-row"><span><strong>Find personal files for optional local copies</strong><small>Discover stable photos, home videos, and files for a managed playback copy on primary storage. Backup-drive copies are selected directly in Import Media.</small></span><Switch checked={form.autoFolderCopy} aria-label="Find personal files for optional local copies" onCheckedChange={v => setForm({ ...form, autoFolderCopy: v, autoImport: v })}/></div><label className="field"><span>Check every <small>minutes</small></span><input type="number" min="1" max="1440" value={form.autoImportMinutes} onChange={e => setForm({ ...form, autoImportMinutes: Number(e.target.value) })}/></label><button className="primary-button" disabled={busy || !form.name.trim() || form.autoImportMinutes < 1 || form.autoImportMinutes > 1440} onClick={() => saveSettings()}>Save refresh settings <Check size={17}/></button></section>}
     {settingsTab === 'devices' && <OpticalDriveSettings value={form.opticalDrive} busy={busy} onChange={opticalDrive => setForm(current => ({ ...current, opticalDrive }))} onSave={() => void saveSettings()} onImport={() => { go('import'); window.setTimeout(() => document.getElementById('disc-import')?.scrollIntoView({ behavior: 'smooth' }), 0); }}/>}
     {settingsTab === 'metadata' && <MetadataPackManager />}
     {settingsTab === 'general' && <SidebarCustomization settings={form} busy={busy} onChange={setForm} onSave={() => void saveSettings()}/>}
-    {settingsTab === 'general' && <OIDCAccountSettings />}
     {settingsTab === 'general' && <details className="settings-disclosure" open><summary><span><strong>Customize Home</strong><small>Featured covers, category rows, and their order</small></span><ChevronDown size={18}/></summary><HomeCustomization settings={form} busy={busy} onChange={setForm} onSave={() => void saveSettings()}/></details>}
-    {settingsTab === 'general' && <OIDCAccountSettings />}
     {settingsTab === 'activity' && <ImportActivity jobs={state.jobs}/>}
     {settingsTab === 'activity' && <details className="settings-disclosure" open><summary><span><strong>Complete recovery points</strong><small>Catalog, managed media, and installed offline packs together</small></span><ChevronDown size={18}/></summary><div className="settings-disclosure-body"><p className="muted small">Create a complete recovery point on your configured backup drive. The update installer still makes its own paired maintenance snapshot. To copy indexed photos, home videos, or personal files to the backup drive, use the separate, confirmed Import action. Linked source-drive originals remain in place.</p><div className="inline-form"><button className="subtle-button" disabled={!state.backup.configured || busy || !!activeJobs.length} onClick={() => void act('full-recovery', {}, 'Complete recovery point started')}><ShieldCheck size={16}/>Create recovery point</button><button className="subtle-button" disabled={!state.backup.configured || recoveryLoading} onClick={() => void loadRecoveryPoints()}><RefreshCw size={16}/>Find recovery points</button></div>{!state.backup.configured && <p className="muted small">Configure a separate backup destination in Storage & Backup first.</p>}{recoveryPoints.map(point => <div className="setting-row" key={point.id}><span><strong>{new Date(point.createdAt).toLocaleString()}</strong><small>Recovery point {point.id}</small></span><button className="subtle-button" disabled={busy || !!activeJobs.length} onClick={() => void prepareRecovery(point.id)}>Prepare full restore</button></div>)}{state.jobs.filter(job => ['full-recovery', 'prepare-full-restore'].includes(job.type)).map(job => <p className="muted small" key={job.id}>{job.type === 'full-recovery' ? 'Recovery point' : 'Restore preparation'} · {job.status}: {job.message}</p>)}<p className="muted small">A restore is prepared in a new empty review directory; it does not replace the running library. Review it before a deliberate offline switch. Read the <a href="/downloads/START-HERE.md" target="_blank" rel="noopener noreferrer">setup and recovery guide</a>.</p></div></details>}
     {settingsTab === 'activity' && <details className="settings-disclosure"><summary><span><strong>Restore saved provider covers</strong><small>After moving a library to another computer</small></span><ChevronDown size={18}/></summary><div className="settings-disclosure-body"><p className="muted small">Portable recovery keeps saved titles, uploaded covers, and Plex/Jellyfin addresses, but excludes their private keys. Reconnect each provider in Service connections if its address or key changed. Then use this action to fill missing covers from saved provider artwork. It leaves uploaded covers, other title details, and metadata source choices alone.</p><button className="subtle-button" disabled={busy || !!activeJobs.length} onClick={() => void restoreMissingCovers()}><RefreshCw size={16}/>Restore missing covers</button>{state.jobs.filter(job => job.type === 'restore-provider-covers').map(job => <p className="muted small" key={job.id}>Cover restoration · {job.status}: {job.message}</p>)}</div></details>}
@@ -1339,7 +1417,7 @@ export default function BlankBox() {
         setLibraryAttachTarget(null);
         setLibraryAttachError('');
     } }}><DialogContent className="form-dialog inventory-review-dialog"><DialogHeader><DialogTitle>Attach selected titles to one Media Item</DialogTitle><DialogDescription>Use this for stray tracks or episodes that already became separate library titles. The chosen title keeps its ID and details. Originals stay on their drives.</DialogDescription></DialogHeader><p className="muted small">{libraryAttachRows.length} selected on this page. Only simple linked file records can be consolidated here; owner edits and extra editions need individual review.</p><div className="inventory-selected-paths"><ul>{libraryAttachRows.map(item => <li key={item.id}>{item.title} · {item.id}</li>)}</ul></div><form className="match-search" onSubmit={event => { event.preventDefault(); void searchLibraryAttach(); }}><label><Search size={17}/><input value={libraryAttachQuery} maxLength={200} onChange={event => setLibraryAttachQuery(event.target.value)} placeholder="Search for the destination show or album" aria-label="Search destination title"/></label><button className="subtle-button" disabled={busy || !libraryAttachQuery.trim()} type="submit">Search library</button></form><div className="inventory-candidates">{libraryAttachResults.map(item => <label key={item.id}><input type="radio" name="library-attach-target" checked={libraryAttachTarget?.id === item.id} onChange={() => setLibraryAttachTarget(item)}/><span>{item.title}{item.year ? ` (${item.year})` : ''}<small>{kindNames[item.kind]} · Media Item {item.id}</small></span></label>)}{!libraryAttachResults.length && <p className="muted small">Search for the title that should remain in your library. It may be one of the selected titles.</p>}</div>{libraryAttachError && <p role="alert" className="error-text">{libraryAttachError}</p>}<button className="primary-button" disabled={busy || !libraryAttachTarget || libraryAttachRows.filter(item => item.id !== libraryAttachTarget.id).length === 0} onClick={() => void attachLibrarySelection()}>Attach {libraryAttachRows.filter(item => item.id !== libraryAttachTarget?.id).length} to {libraryAttachTarget?.title || 'chosen title'}</button></DialogContent></Dialog>
- <Dialog open={sourceReviewOpen} onOpenChange={setSourceReviewOpen}><DialogContent className="form-dialog reconciliation-dialog"><DialogHeader><DialogTitle>We found possible matches</DialogTitle><DialogDescription>Review them now, or leave them safely in Import Media for later.</DialogDescription></DialogHeader><ReconciliationPanel reviews={state.reviews} reviewCount={state.reviewCount} busy={busy} onResolve={(reviewId, policy, targetId) => void resolveReview(reviewId, policy, targetId, true)} onResolveAll={policy => void resolveAllReviews(policy, true)}/><button className="subtle-button decide-later" onClick={() => { setSourceReviewOpen(false); toast.info('Possible matches saved in Import Media.'); }}>Decide later</button></DialogContent></Dialog>
+ <Dialog open={sourceReviewOpen} onOpenChange={setSourceReviewOpen}><DialogContent className="form-dialog reconciliation-dialog"><DialogHeader><DialogTitle>We found possible matches</DialogTitle><DialogDescription>Review them now, or leave them safely in Import Media for later.</DialogDescription></DialogHeader><ReconciliationPanel loading={reviewsLoading} error={reviewsError} onRetry={() => setReviewReload(value => value + 1)} reviews={state.reviews} reviewCount={state.reviewCount} busy={busy || reviewWorking} working={reviewWorking} onResolve={(reviewId, policy, targetId) => void resolveReview(reviewId, policy, targetId)} onResolveAll={policy => void resolveAllReviews(policy)}/><button className="subtle-button decide-later" onClick={() => { setSourceReviewOpen(false); toast.info('Possible matches saved in Import Media.'); }}>Decide later</button></DialogContent></Dialog>
 
  {catalogEditor && !matchOpen && <CatalogEditorDialog key={`${catalogEditor.id}-${catalogEditor.metadataMatch?.matchedAt || ''}-${editorRevision}`} item={catalogEditor} focus={editorFocus} onRestoreFocus={() => { if (document.querySelector('[role="dialog"]:not(.media-item-dialog)'))
         return; if (editorTrigger.current?.isConnected)

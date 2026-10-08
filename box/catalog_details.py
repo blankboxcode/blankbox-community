@@ -189,7 +189,7 @@ def provider_details(entry, provider):
 
 
 def provider_identifiers(entry, provider, kind):
-    """Explicit provider IDs are lookup evidence, never household merge authority."""
+    """Supplied IDs are work evidence; kind, conflicts and cut scope govern joins."""
     identifiers = set()
     if provider == 'jellyfin' and isinstance(entry.get('ProviderIds'), dict):
         for namespace, value in entry['ProviderIds'].items():
