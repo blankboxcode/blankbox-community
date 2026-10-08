@@ -1,19 +1,19 @@
 {
   "format": 1,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "repository": "blankboxcode/blankbox-community",
-  "sourceRevision": "cd3869cede2fcf9825877945c364595a9ac2ccc5",
-  "packageSha256": "548c837d6088fa2f347020e60f661d424513a3b20e8f926b9a8ba27b33cc0a65",
-  "manifestSha256": "b3408c0961e5ea7e6aaa0dc5a18b409c466aadfb788ca9f5967d7e4975dd0f91",
+  "sourceRevision": "93b52ecece5dd81b357b45b2247ad2d3b1d6e11b",
+  "packageSha256": "1f8c46c736ee948b955252cff9d20676739d2ce3128544a3c27ea81398dfddeb",
+  "manifestSha256": "a2890556b34cccdb03626892f0a34352d55e61707e84459aad32651ed388cef2",
   "platform": "linux/amd64",
   "apiVersion": 1,
-  "catalogSchema": 22,
+  "catalogSchema": 23,
   "minimumPackReader": 5,
   "deliveryRevision": 1,
-  "image": "ghcr.io/blankboxcode/blankbox-community@sha256:f7f4340c5ac029aa12f3d02b3ee6f179d57b89dca87dd8f7a053d1753e6bf660",
+  "image": "ghcr.io/blankboxcode/blankbox-community@sha256:b1656b51a5c1f70e68afed09268437cee1886f550d2611cfedccf9aee482d359",
   "publisherSignature": {
     "algorithm": "RSA-PSS-SHA256",
     "keyId": "e4dbb45238808b4b8431875a",
-    "value": "MfQEkQqk2cW782HFKto5JUbdosa8EDMCU17sxadhxF9IP2G/F7V7NMNI6Zpud7ImTMrpnxNeavO/J4FBKFqmMXnGbtTyxmSYttKYvnUut1vpQ0bAFrgpSc4opaIrIzPZEsrvemeI4FBFPCNC9lhoWD9SOetsRnc7Y0uQsJhP9htgbC1lo1B54/39sb3xadDOZWPso6LYIj/7tBQxrLieeQj3s/BfwB/jZnJv+HwwKmsbWtW+lEhZdHxBbw/P7wE4rYtL9A1Gum15GArwDGORF59654RI/iEjzjsmOT3JQWNVtgkhZ4REUIknjISSXOjld6Gq9NMcyTReGCwSelznvIXijj8NIKg9iueEhPzmc6WF68AfdZtRky2MuPaw6MsdGObuOktGIZVRJ6eZ7byp4qfo4vNt96VWpyfKlNi4pwHpiMgUYJ623y2w+t2RfPItxureHSUgZn1H1ls8wVUKyghnAgwCFgTKCz3VqkLBNtaTWO6Pen6xIRbXQD1QLZJm"
+    "value": "q4M1U33QpLitsOh0aND/GuNd7wxo4OOMpBFOpUnFw0SkTNy6uQ4B09KlPcg71bhDY1nzAnWcGo4Hc2gSs2o6F3Ls5YcUFhZK7mPbEj1dKcR+A2DRGoaMNThQhGz1f5g0weJlBmW+dC3qkOkBlY0YrxXDNwdfVmKT3BKebDcdpfo7ezFuRvU/ZQfEHWCgpz+rz0yTryi9zNl+qXT3ddhaFl9gx+X/sUPfMCMShohodWmxsI9+9nnnDijaVlL2VmA2ulQ6EB5U6nvy3wiDRbXm3zEfJR3QkXtK494kdRM9jiQodrcy+fDDugfsM04US+0sSA6zzGFUmJei30zpvg5Wdco9Uw1ZF5ElIcgzrFmaDuCKakhnqjpIfWXKEpXtccygqlDaD5yGByxRDvokmJkuZAWOI8T8bjLTLAsDhpNvTTa00b06D3+eDzmRlflLyefpjr9kZQTfqq8nRY7Zhb/IfAY55eGmF4gCD8W5SVaMWtTzGW2z1W3dNYpKDPIGpis6"
   }
 }

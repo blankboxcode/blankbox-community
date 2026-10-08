@@ -1,6 +1,6 @@
 # Connect Jellyfin or Plex to Blank Box
 
-We connect to an existing Jellyfin or Plex server through **Settings → Service connections**. Enter an address reachable from the computer running Blank Box, paste the credential into the matching field and choose **Sync**. Saving a website address alone gives you a launch shortcut; syncing requires the credential. We read catalog details and open playback in the chosen service. We do not change its library files.
+Connect an existing Jellyfin or Plex server through **Settings → Connections**. Enter an address reachable from the computer running Blank Box, paste the credential into the matching field and choose **Sync**. Saving a website address alone gives you a launch shortcut; syncing requires the credential. Syncing reads the catalog and adds links that open playback in the connected app. The server’s library files stay unchanged.
 
 ## Jellyfin API key
 
@@ -16,7 +16,7 @@ Jellyfin's [official Web interface source](https://github.com/jellyfin/jellyfin-
 2. Open an item in that server's library, choose **Get Info**, then **View XML**. Plex's [token instructions](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/) describe this path.
 3. Copy only the value of `X-Plex-Token` from the XML page URL. Enter the Plex server address, usually `http://server-address:32400`, and paste the value into **Plex token** in Blank Box. Choose **Sync Plex**.
 
-Plex describes the token obtained this way as temporary. If a later sync stops authenticating, obtain a fresh token. We label this manual-token connection experimental. Do not paste the token into support tickets, screenshots, or a public URL.
+Plex describes the token obtained this way as temporary. If a later sync stops authenticating, obtain a fresh token. The manual-token connection is experimental. Do not paste the token into support tickets, screenshots, or a public URL.
 
 ## If sync fails
 

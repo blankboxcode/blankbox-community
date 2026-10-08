@@ -1,6 +1,6 @@
 # Protect and recover your library
 
-We treat your household catalog as the authority for titles, edits, provenance, identities, physical copies, artwork, intentions, activity and saved collections. Reference databases and connected servers add evidence. Missing storage or an unavailable provider does not authorize deleting the catalog.
+Your catalog holds the titles, copies, artwork, corrections and collections you’ve saved. These records remain in your library when a drive is disconnected or a connected server is unavailable. Back up the catalog and managed files, and protect originals on your source drives separately.
 
 ## Portable backup
 
@@ -34,7 +34,7 @@ Use the `blankbox-community-VERSION.zip` matching the recovery catalog's Core ve
 
 ```text
 blankbox/
-  blankbox-community-1.0.0/
+  blankbox-community-1.0.1/
     restore.py
     server.py
   backup-extracted/
@@ -61,8 +61,8 @@ Choose the `full-recovery.json` for the complete point you want. Its **containin
 From that same outer folder, restore into a **new** `restored-data` folder. This example assumes the folder names shown above. Replace the quoted snapshot path with the containing folder shown by your `find` output:
 
 ```sh
-python3 "./blankbox-community-1.0.0/restore.py" --full "./backup-extracted/blank-box-backup/snapshots/POINT-ID" "./restored-data"
-python3 "./blankbox-community-1.0.0/server.py" --data "./restored-data" --port 25266
+python3 "./blankbox-community-1.0.1/restore.py" --full "./backup-extracted/blank-box-backup/snapshots/POINT-ID" "./restored-data"
+python3 "./blankbox-community-1.0.1/server.py" --data "./restored-data" --port 25266
 ```
 
 Wait for the first command to report that it restored and checked the catalog, managed files and packs. If it reports an error, stop and keep both extracted ZIP folders; do not run the second command against a partial restore. Leave the second command running and open `http://127.0.0.1:25266` in a browser **on that test computer**. Blank Box creates a new recovery key at `restored-data/access-key.txt` when Core first starts; read it privately to claim a test owner profile. Stop only this test process with Ctrl+C when done; the `restored-data` folder remains for review. Do not run the normal setup wizard against this restored data folder; the wizard creates a separate fresh installation. Existing populated restore destinations and linked destination paths are rejected. Run the commands as an account that can read the snapshot and shared managed-media backup and write the new destination; on a Linux service installation this is normally the `blankbox` account. Do not make private backups world-readable to work around a permission error.

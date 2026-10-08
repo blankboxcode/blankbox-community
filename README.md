@@ -18,7 +18,7 @@
 
 # Your collection, in one private library
 
-We built Blank Box Community to bring physical collections, files on your own drives and optional Plex/Jellyfin catalogs together. See what you own, where it lives and how to enjoy it, in a library that runs on your computer and works offline.
+We built Blank Box to keep physical media, files on your drives and Plex/Jellyfin sources together. Your library runs on your computer, with the details, editions and locations of your collection in one place. You can use it offline without connecting a media server.
 
 - **Catalog your collection:** record discs, books, records and other physical media, with editions, packaging, release labels, locations and front/back artwork.
 - **Import a collection list:** bring in CSV, TSV or text files up to 100 MB and 100,000 rows, including blu-ray.com exports. Review matches and optional offline details before saving.
@@ -26,27 +26,36 @@ We built Blank Box Community to bring physical collections, files on your own dr
 - **Connect your files and services:** link files on mounted drives in place, or sync an existing Plex/Jellyfin catalog. Your originals stay where they are.
 - **Find details offline:** optional signed Movies, TV, Books and Music database packs help with titles and reference facts. Coverage varies; these packs contain no media or cover art.
 - **Choose how to enjoy a title:** browse editions and artwork, play compatible files, read supported EPUB/CBZ documents, or open a connected service. Record digital purchases and redeemed codes separately from playback.
+- **Plan your next purchase:** keep a Wishlist and track paid Preorders, receive partial deliveries and retain order history. [Purchasing guide](guides/COLLECTOR-DETAILS.md#wishlist-and-preorders).
 - **Keep your library yours:** save corrections, export your catalog and create recovery points for your records and managed copies.
 
 No Blank Box online account, subscription or connected media server is required. Browser formats and codecs determine what plays directly; Blank Box does not transcode.
 
+## New in 1.0.1
+
+**Preorders** tracks purchases you're waiting to receive, including partial deliveries and order history. **Wishlist** holds titles you plan to buy. When a purchase arrives, you can add it to your library with the details you've already entered.
+
+Watch and Listen have one row for each connected app and local files, with seasons, episodes and tracks below the source you choose. Library cards show source and edition counts. Clear Plex/Jellyfin duplicates can merge in your existing library; uncertain or conflicting entries stay separate.
+
+[Wishlist and Preorders](guides/COLLECTOR-DETAILS.md#wishlist-and-preorders) · [Playback](guides/PLAYBACK.md#choosing-sources-and-versions) · [Connected-library matching](guides/CONNECTED-LIBRARIES.md) · [Full changelog](RELEASE-NOTES.md)
+
 ## Download
 
-**Blank Box Community 1.0.0** is the stable release for Linux and Docker. The interface is already built; no Node.js, npm or source build is needed to install it.
+**Blank Box Community 1.0.1** is the stable release for Linux and Docker. The interface is already built; no Node.js, npm or source build is needed to install it.
 
 | How you want to run it | Download | Guide |
 | --- | --- | --- |
-| Docker on Linux Intel/AMD | [Small Docker setup ZIP](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/downloads/blankbox-docker-1.0.0-1.zip) | [Docker](guides/DOCKER.md) |
-| Linux background service | [Linux installation ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v1.0.0/blankbox-community-1.0.0.zip) | [Linux](guides/LINUX.md) |
+| Docker on Linux Intel/AMD | [Small Docker setup ZIP](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/downloads/blankbox-docker-1.0.1-1.zip) | [Docker](guides/DOCKER.md) |
+| Linux background service | [Linux installation ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v1.0.1/blankbox-community-1.0.1.zip) | [Linux](guides/LINUX.md) |
 | Windows 10/11 x64, experimental | [Earlier Windows package](https://github.com/blankboxcode/blankbox-community/releases/download/v0.1.0-beta.8/blankbox-community-0.1.0-beta.8-windows-x64.zip) | [Windows](guides/WINDOWS.md) |
 
-[Release files and checksums](https://github.com/blankboxcode/blankbox-community/releases/tag/v1.0.0) · [Verify a download](UPDATES.md#trust) · [Platform status](PLATFORMS.md)
+[Release files and checksums](https://github.com/blankboxcode/blankbox-community/releases/tag/v1.0.1) · [Verify a download](UPDATES.md#trust) · [Platform status](PLATFORMS.md)
 
 Verify the package before running setup. For your first download, confirm the signing-key fingerprint through an independently trusted Blank Box channel. For updates, use your existing trusted verifier. GitHub's source archives are developer downloads.
 
 ## Install with Docker
 
-Requires Docker Engine and the Compose plugin on a Linux Intel/AMD host, plus Python 3.10+ for verification and checked updates. We provide a public image from GitHub Container Registry; no local application build or GitHub sign-in is needed.
+Requires Docker Engine and the Compose plugin on a Linux Intel/AMD host, plus Python 3.10+ for verification and checked updates. The image is available from GitHub Container Registry; no local application build or GitHub sign-in is needed.
 
 1. Download, verify and extract the **Docker setup ZIP**. Open a terminal in its folder.
 2. Start a new library:
@@ -72,7 +81,7 @@ For another device on your trusted home network, set `BLANKBOX_BIND_ADDRESS=0.0.
 
 Your library stays in the persistent `blankbox_blankbox-data` volume. Keep it when updating or recreating containers. The [Docker guide](guides/DOCKER.md) covers media mounts, backups, custom UID/GID and bind folders.
 
-**Portainer:** follow the [Portainer guide](guides/PORTAINER.md) or use repository `https://github.com/blankboxcode/blankbox-community`, branch `main`, Compose path `deploy/docker-image/compose.yaml`. The [Compose file](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/deploy/docker-image/compose.yaml) uses our prebuilt image.
+**Portainer:** follow the [Portainer guide](guides/PORTAINER.md) or use repository `https://github.com/blankboxcode/blankbox-community`, branch `main`, Compose path `deploy/docker-image/compose.yaml`. The [Compose file](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/deploy/docker-image/compose.yaml) uses the prebuilt image.
 
 ## Install from a ZIP
 
@@ -81,7 +90,7 @@ Your library stays in the persistent `blankbox_blankbox-data` volume. Keep it wh
 Requires Python 3.10+ and systemd on a Debian/Ubuntu-class computer.
 
 1. Download, verify and extract the **Linux installation ZIP**.
-2. Open a terminal in the extracted `blankbox-community-1.0.0` folder, where `setup-linux.sh` and `RELEASE.json` are visible.
+2. Open a terminal in the extracted `blankbox-community-1.0.1` folder, where `setup-linux.sh` and `RELEASE.json` are visible.
 3. Run:
 
    ```sh
@@ -108,7 +117,7 @@ None of these access choices automatically enables outside-home Internet access 
 
 ### Windows, experimental
 
-The earlier Windows package includes Python. Extract it, open `setup-windows.cmd` and follow its [Windows guide](guides/WINDOWS.md). It does not include the current Linux/Docker features and cannot open a schema 22 catalog.
+The earlier Windows package includes Python. Extract it, open `setup-windows.cmd` and follow its [Windows guide](guides/WINDOWS.md). It does not include the current Linux/Docker features and cannot open a schema 23 catalog.
 
 ## Make it your library
 
@@ -117,6 +126,7 @@ Start with a shelf, a folder or a connected catalog, then add the rest at your o
 - **Import Media:** import and review a collection list, index configured folders, or connect a Plex/Jellyfin catalog.
 - **Physical Media:** add copies, save entry defaults and manage movie/TV box sets.
 - **Item details:** choose editions, artwork, playback, streaming searches and digital-platform records in a popup over your library.
+- **Wishlist and Preorders:** open them from My Library or Physical Media, or enable their optional sidebar links.
 - **Collections:** organize custom groups and rules, locations, favorites and activity.
 - **Settings:** manage service links, offline database packs, local account recovery and optional OIDC.
 
@@ -142,9 +152,9 @@ Use separate storage and test a restore into a new empty destination. A library 
 
 ## Feedback and support
 
-We welcome [bugs, questions and suggestions](https://github.com/blankboxcode/blankbox-community/issues/new/choose). Include the installed version, device/OS, steps and expected result. Keep credentials, household catalogs and private paths out of public reports.
+Send us [bugs, questions and suggestions](https://github.com/blankboxcode/blankbox-community/issues/new/choose). Include the installed version, device/OS, steps and expected result. Keep credentials, household catalogs and private paths out of public reports.
 
-[Feedback guide](FEEDBACK.md) · [Support](SUPPORT.md)
+[Join us on Discord](https://discord.com/invite/fD8k4sn9sk) · [Feedback guide](FEEDBACK.md) · [Support](SUPPORT.md)
 
 ## License and source builds
 

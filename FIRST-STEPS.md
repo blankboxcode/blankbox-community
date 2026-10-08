@@ -1,6 +1,8 @@
 # Your first library
 
-We include four optional reference databases; allow a few minutes for them to install on first startup. They contain reference titles, not a sample household library. You can organize your collection without internet access or connected services.
+We suggest starting with one item you can check easily. Add it, review its details, then try the other parts of your collection. [Wishlist and Preorders](guides/COLLECTOR-DETAILS.md#wishlist-and-preorders) can keep track of purchases along the way.
+
+The package includes four optional reference databases; allow a few minutes for them to install on first startup. They contain reference titles, not a sample household library. You can organize your collection without internet access or connected services.
 
 ## 1. Create your owner profile
 
@@ -16,11 +18,13 @@ Start with one real item you can check easily:
 - **Files:** index a configured source. For a large drive, use **Match all files (preview)**, inspect the counts and matching warning, then confirm the bulk links. Use **Needs review** to resolve the remaining files. Copying into managed storage is a separate, explicit action; indexing and linking leave originals where they are. See [Large library import](guides/LARGE-LIBRARY.md).
 - **Plex/Jellyfin:** connect your server and sync its catalog. Check the source attached to one title. Connected access does not mean you own a physical copy.
 
-When the same title already exists, review attaching the new evidence to it. Keep ambiguous titles or conflicting editions separate until you can confirm them. Each reviewed title has one stable Media Item ID; its sources, releases and copies have their own IDs.
+When the title is already in your library, check whether the new source or copy belongs on it. Keep ambiguous titles or conflicting editions separate until you can confirm them. Sources and copies keep their own details when they belong to the same title.
 
 ## 3. Check the details and a collection
 
 Open an item and confirm its title, year, editions and copy count. Use **Edit title details** for shared information or select an edition and choose **Edit this copy** for its fields. **Edit artwork** is beside the cover; **Choose details source** selects the saved information you prefer. Check playback using the file or connected-app buttons. Your edits and confirmed facts stay in your library. Save a collection, add the item, and reopen it. Reference suggestions do not add owned copies.
+
+Library cards show connected-source and edition counts beneath the title. Wishlist and Preorders are separate planning pages in My Library and Physical Media. Use Wishlist for intended purchases and Preorders for paid orders awaiting delivery. [Purchasing guide](guides/COLLECTOR-DETAILS.md#wishlist-and-preorders).
 
 ## 4. Protect your work
 

@@ -1,11 +1,11 @@
 # Run Blank Box with Portainer
 
-Our public image runs on Linux Intel/AMD Docker hosts. We have checked deployment through Portainer Community Edition 2.45.1's Web editor, including readiness and preservation of an existing library. There is no local application build or GitHub registry sign-in requirement.
+Use the prebuilt image on a Linux Intel/AMD Docker host. We’ve tested these instructions with Portainer Community Edition 2.45.1’s Web editor. You can install without building the application or signing in to GitHub.
 
 ## Start a new library
 
 1. In Portainer, select the Docker environment that will run Blank Box. Choose **Stacks → Add stack**, name it `blankbox`, and select **Web editor**.
-2. Open our [Compose file](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/deploy/docker-image/compose.yaml) and paste its complete contents into the editor once.
+2. Open the [Compose file](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/deploy/docker-image/compose.yaml) and paste its complete contents into the editor once.
 3. Under **Environment variables**, choose how you will connect:
 
    | Access | Settings and address |
@@ -52,14 +52,14 @@ First [switch to the official image](DOCKER-MIGRATION.md) and check sign-in and 
    Use sudo if Docker needs it. **Omit `--volumes`.** Then deploy the prepared Portainer stack using the same project name. Only one Blank Box container may run against this library.
 4. Check health, your usual address, existing sign-in, items, artwork and playback. Keep the old setup and recovery material.
 
-Blank Box containers created outside Portainer can appear with limited stack control. Creating the stack through Portainer gives it the saved definition it needs to manage it. Other managers, Swarm, additional architectures and individual device features need their own checks.
+Blank Box containers created outside Portainer can appear with limited stack control. Creating the stack through Portainer gives it the saved definition it needs to manage it. These instructions cover Portainer on a Linux Intel/AMD Docker host. Swarm and other architectures are outside this guide.
 
 ## Keep updates and the stack definition together
 
 For an existing Portainer-managed stack:
 
 1. Create a complete recovery point in **Settings → System & About** on your configured separate backup drive. Wait for it and any imports or syncs to finish. Keep the current image digest and stack settings.
-2. Download and verify the new [Docker setup ZIP](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/downloads/blankbox-docker-1.0.0-1.zip) with your previously trusted verifier. Its authenticated `image.json` identifies the new image digest.
+2. Download and verify the new [Docker setup ZIP](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/downloads/blankbox-docker-1.0.1-1.zip) with your previously trusted verifier. Its authenticated `image.json` identifies the new image digest.
 3. Pull that exact image on your Docker host before updating. This checks that it is available while the current container keeps running:
 
    ```sh

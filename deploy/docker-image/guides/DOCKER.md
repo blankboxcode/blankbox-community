@@ -1,6 +1,6 @@
 # Run Blank Box with Docker Compose
 
-We provide a prebuilt image for a Linux Intel/AMD host with Docker Engine and the Docker Compose plugin. Python 3.10+ verifies the small setup bundle and handles checked updates. Docker pulls the application from `ghcr.io/blankboxcode/blankbox-community`; you do not need a local application build.
+Use the prebuilt image on a Linux Intel/AMD host with Docker Engine and the Docker Compose plugin. Python 3.10+ verifies the small setup bundle and handles checked updates. Docker pulls the application from `ghcr.io/blankboxcode/blankbox-community`; you do not need a local application build.
 
 For an existing locally built image, follow [Switch to the official Docker image](DOCKER-MIGRATION.md). For a new Portainer stack or a later management handover, follow [Portainer](PORTAINER.md).
 
@@ -8,7 +8,7 @@ Run `docker info` to check access to Docker before installing or updating. If it
 
 ## 1. Extract and configure
 
-Download the small [Docker setup ZIP](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/downloads/blankbox-docker-1.0.0-1.zip), extract it and open a terminal inside the resulting folder. You should see `compose.yaml`, `image.json`, `setup-docker.sh` and `blankbox.env.example`. This creates a fresh, empty library in a persistent Docker volume. For an existing installation, use the update steps below. For a recovery drill, read [Recovery](../RECOVERY.md) and use a separate empty data location.
+Download the small [Docker setup ZIP](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/downloads/blankbox-docker-1.0.1-1.zip), extract it and open a terminal inside the resulting folder. You should see `compose.yaml`, `image.json`, `setup-docker.sh` and `blankbox.env.example`. This creates a fresh, empty library in a persistent Docker volume. For an existing installation, use the update steps below. For a recovery drill, read [Recovery](../RECOVERY.md) and use a separate empty data location.
 
 Confirm the publisher key fingerprint independently for a first download, then verify the bundle:
 
@@ -68,11 +68,11 @@ BLANKBOX_OPTICAL_DEVICE=/dev/sr0
 BLANKBOX_OPTICAL_GID=24
 ```
 
-Then the normal `docker compose` and `./upgrade-docker.sh` commands use the drive override automatically. Keep these `.env` settings when moving to a new release folder. Without a drive, leave these lines out. Optical-drive passthrough and extraction still require a real-device acceptance test; Docker Desktop on Windows is not claimed to expose the host optical drive. Protected video discs remain outside this import path.
+Then the normal `docker compose` and `./upgrade-docker.sh` commands use the drive override automatically. Keep these `.env` settings when moving to a new release folder. Without a drive, leave these lines out. Optical-drive access depends on your host and drive; Docker Desktop on Windows is not claimed to expose the host optical drive. Protected video discs remain outside this import path.
 
 ## Optional: choose your user and a host data folder
 
-Our new-install default is `1000:1000`. To use a different non-root UID, prepare a dedicated host data folder owned by that user as shown below, and select the IDs in `.env` or `compose.override.yaml`. The default new named volume is initialized for UID 1000; changing the process user alone does not change its ownership. Check your intended Linux account's IDs with `id -u` and `id -g`. Setting `PUID` or `PGID` environment variables does not change the process user; use Compose's `user` setting.
+The new-install default is `1000:1000`. To use a different non-root UID, prepare a dedicated host data folder owned by that user as shown below, and select the IDs in `.env` or `compose.override.yaml`. The default new named volume is initialized for UID 1000; changing the process user alone does not change its ownership. Check your intended Linux account's IDs with `id -u` and `id -g`. Setting `PUID` or `PGID` environment variables does not change the process user; use Compose's `user` setting.
 
 For a **new, empty** data folder on a normal Linux Docker host, replacing these example IDs and path as needed:
 
@@ -166,11 +166,11 @@ If you also want to change the user or move your data to a host folder, upgrade 
 ./upgrade-docker.sh
 ```
 
-The helper verifies the bundle and signed image descriptor, checks the existing project/user/mounts and pulls the exact image digest before stopping. It then snapshots SQLite and its paired assets, waits for readiness, and saves the accepted digest and UID/GID in `.env`. An existing `10001:10001` library keeps that user; an existing `1000:1000` library keeps 1000. It does not change ownership. Conflicting user or storage settings are refused before stopping the service. If the old container was removed, start the previous release with its current settings first. Failed activation restores the paired catalog and previous image and persists that recovered selection for ordinary `docker compose up`. Keep the printed previous image tag and snapshot. Older beta.8/beta.9 catalogs migrate from schema 20 to 22; an older image needs its pre-update catalog/assets snapshot. See [Rollback](../UPDATES.md#rollback).
+The helper verifies the bundle and signed image descriptor, checks the existing project/user/mounts and pulls the exact image digest before stopping. It then snapshots SQLite and its paired assets, waits for readiness, and saves the accepted digest and UID/GID in `.env`. An existing `10001:10001` library keeps that user; an existing `1000:1000` library keeps 1000. It does not change ownership. Conflicting user or storage settings are refused before stopping the service. If the old container was removed, start the previous release with its current settings first. Failed activation restores the paired catalog and previous image and persists that recovered selection for ordinary `docker compose up`. Keep the printed previous image tag and snapshot. Older beta.8/beta.9 catalogs migrate from schema 20 to 23; an older image needs its pre-update catalog/assets snapshot. See [Rollback](../UPDATES.md#rollback).
 
 ## Compose URLs and Docker managers
 
-The ready-to-use [Compose file](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/deploy/docker-image/compose.yaml) uses `image:` with an exact digest and has no `build:` entry. In a manager that supports a Git repository, use `https://github.com/blankboxcode/blankbox-community`, branch `main`, and Compose path `deploy/docker-image/compose.yaml`. A manager that accepts a Compose file URL can use the linked raw URL. Add your port, user and mount settings as described above. We have checked Portainer Community Edition 2.45.1 Web editor deployment on Linux/amd64; follow [Portainer](PORTAINER.md) for setup and storage-preserving handover. Other managers, repository deployment modes and automatic updates need their own checks. Keep Portainer's saved definition synchronized if the checked CLI updater recreates its container.
+The ready-to-use [Compose file](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/deploy/docker-image/compose.yaml) uses `image:` with an exact digest and has no `build:` entry. In a manager that supports a Git repository, use `https://github.com/blankboxcode/blankbox-community`, branch `main`, and Compose path `deploy/docker-image/compose.yaml`. A manager that accepts a Compose file URL can use the linked raw URL. Add your port, user and mount settings as described above. We’ve tested the Portainer Community Edition 2.45.1 Web editor on Linux/amd64; follow [Portainer](PORTAINER.md) for setup and storage-preserving handover. Other managers and deployment modes may handle updates differently. Keep Portainer's saved definition synchronized if the checked CLI updater recreates its container.
 
 For a **new empty library**, a current Compose plugin with Git URL support can load the file directly:
 
@@ -182,7 +182,7 @@ Compose may show the downloaded settings and ask for confirmation. Review them, 
 
 ## Optional local build
 
-You can still build from the full [Linux / Docker installation ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v1.0.0/blankbox-community-1.0.0.zip). Extract and verify that package, then open its folder containing `Dockerfile` and `compose.yaml`:
+You can still build from the full [Linux / Docker installation ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v1.0.1/blankbox-community-1.0.1.zip). Extract and verify that package, then open its folder containing `Dockerfile` and `compose.yaml`:
 
 ```sh
 cp -n blankbox.env.example .env

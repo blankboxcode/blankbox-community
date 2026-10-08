@@ -1,6 +1,6 @@
 # Import a large drive
 
-We designed this path to build catalog links from a drive you already have. The drive's original files remain where they are unless you separately confirm a managed or personal-file copy.
+Index a drive you already have, then link its files to titles in your library. Originals stay in place. Copying files into managed storage or a personal-file backup requires a separate confirmation.
 
 Add the mounted drive or folder to Blank Box's `sources` configuration and make it readable by the Core account. Open **Import → Files on a drive or folder**, select that source, and choose **Index source**. Indexing records paths, sizes, dates and filename/folder clues. It does not copy, hash, rename or delete the files. Keep the drive mounted until indexing finishes.
 

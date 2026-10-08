@@ -48,7 +48,7 @@ Use `sudo` if your Docker commands require it. The helper checks the existing co
 
 After updating, sign in at your usual address and check an existing item and your sources. Keep the printed previous image tag and paired snapshot for recovery. Never start an older image against an incompatible newer catalog; see `UPDATES.md` and `RECOVERY.md`. A library recovery point cannot recreate missing linked originals.
 
-For a previously created container managed through a Docker UI, keep its stack/project and mounts identical. The image has no build requirement, but each manager's deployment and update behavior requires its own check. Do not assume a manager's “update image” button creates a paired catalog snapshot.
+For a previously created container managed through a Docker UI, keep its stack/project and mounts identical. The image needs no local build. Docker managers can handle deployment and updates differently. Do not assume a manager's “update image” button creates a paired catalog snapshot.
 
 ## Normal operation
 

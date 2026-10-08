@@ -1,6 +1,8 @@
 # Play your media in Blank Box
 
-We play supported user-provided files locally. Use media you own or have permission to use. The household acknowledgement records intended use; it does not verify ownership or change anyone’s rights.
+Choose a source in Watch or Listen, then browse its seasons, episodes, discs or songs below. **Change source** lets you choose a different version or quality. The main playback button follows that selection.
+
+You can play local files your browser supports or open a title in Plex or Jellyfin. Use media you own or have permission to use. The acknowledgement during setup records your intended use; it does not verify ownership.
 
 ## Connect a local file
 
@@ -12,9 +14,9 @@ Indexing and playback leave originals in place. Blank Box-managed copies and dig
 
 ## What can play?
 
-Blank Box streams the original file with authenticated byte-range requests. Your browser must support its container and codecs; an MP4 extension alone does not guarantee compatibility. The player attempts direct play and reports failure visibly. **Download for an external player** saves the source to your device for a compatible app. Blank Box does not currently transcode, invoke FFmpeg, or create HLS streams.
+Blank Box streams the original file with authenticated byte-range requests. Your browser must support its container and codecs; an MP4 extension alone does not guarantee compatibility. The player tries to play the file directly and shows an error if it cannot. **Download for an external player** saves the source to your device for a compatible app. Blank Box does not currently transcode, invoke FFmpeg, or create HLS streams.
 
-Music plays with track navigation, including local WAV/FLAC audio-CD imports where the browser supports them. The CD must first be digitized; the player does not stream an inserted CD drive directly. Photos display in the browser where supported. PDF uses the browser reader; managed or reviewed indexed EPUB and CBZ use Blank Box’s bounded read-only reader. Protected books, CBR, MOBI, games, and other unsupported files need an appropriate external app.
+Music plays with track navigation, including local WAV/FLAC audio-CD imports where the browser supports them. The CD must first be digitized; the player does not stream an inserted CD drive directly. Photos display in the browser where supported. PDF uses the browser reader; managed or reviewed indexed EPUB and CBZ use Blank Box’s reader. Protected books, CBR, MOBI, games, and other unsupported files need an appropriate external app.
 
 An unavailable or changed indexed file is rejected. Reconnect its drive or index and review it again. Blank Box never silently substitutes a different file. Browser format failures retain other playback choices. A source marked unavailable falls back to other usable sources. If a connected server goes offline before Blank Box knows, use the explicit local-file action in item details.
 
@@ -24,9 +26,9 @@ An unavailable or changed indexed file is rejected. Reconnect its drive or index
 
 ## Connect Jellyfin or Plex
 
-Connect an existing service in **Settings → Connections**. See the [connection-key guide](CONNECTION-KEYS.md) for credentials. The main action follows a selected Plex/Jellyfin details source when it is usable. Blank Box details use reachable local files first; unavailable or removed choices fall back to other usable sources. Explicit source buttons remain available.
+Connect an existing service in **Settings → Connections**. See the [connection-key guide](CONNECTION-KEYS.md) for credentials. Before you choose a playback source, the main action uses your selected details source when it is usable, or available local files for Blank Box details. Opening or browsing another source updates that action independently of your metadata preference. Unavailable or removed choices fall back to other usable sources; explicit source buttons remain available.
 
-**Open Plex** uses the saved server connection to open that exact title in Plex Web. Sign in to Plex separately if asked. The Plex server address must be reachable from your device; Blank Box does not proxy its player or media. Existing synced titles do not need a full resync for this link correction. If the server cannot be reached, check **Settings → Connections**; local files can still play.
+**Open Plex** uses the saved server connection to open that exact title in Plex Web. Sign in to Plex separately if asked. The Plex server address must be reachable from your device; Blank Box does not proxy its player or media. You can open already-synced titles without syncing the entire library again. If the server cannot be reached, check **Settings → Connections**; local files can still play.
 
 ## Match and fill title details
 
@@ -40,4 +42,19 @@ DVD/Blu-ray entries are catalog records. In **Information → Play your disc in 
 
 ## Privacy and access
 
-LAN playback is device ↔ Core only, with household authentication. Stream URLs resolve catalog item/source IDs; they are not public bearer links and cannot request arbitrary filesystem paths. Existing session expiry governs access. Playback adds no separate history table; the existing resume-progress setting remains. No new remote-access service or cloud media upload is involved.
+Local playback runs between your device and the computer hosting Blank Box. It requires your signed-in account and does not upload media to a cloud service. Remote access uses the private network or HTTPS setup you configured separately.
+
+
+## Choosing sources and versions
+
+Open a title and use **Watch**, **Listen**, or **Read & listen**. Each connected app and **Local** has one playback row. **Change source** chooses another attached version or file quality without adding physical ownership. Opening or browsing a source also updates the main playback button. **Your editions** retains the separate edition/box-set chooser with copy locations and shared package details.
+
+TV seasons and episodes follow the playback source above. Choose a season, then expand its episode list. Connected music albums load songs from the selected Jellyfin or Plex album, with disc navigation when supplied. Connected tracks and episodes appear in pages of 25; local files use pages of 20. **Open track** or **Open episode** opens that entry in its connected app. These lists describe provider availability, not physical ownership or additional library titles.
+
+Refresh episodes/tracks beside the information and activity controls. A failed refresh keeps saved details available and offers retry. **Manage connected sources** and connected-app guidance sit at the bottom beside **Manage this item**. Available playback qualities and supported codecs still depend on the connected app or local browser.
+
+When importing a possible match, **Keep current details** retains the title's current metadata source and manual edits. Choosing incoming details explicitly changes the metadata source. A connected source being added does not by itself replace the selected details source. Reviews remain available in Import Media until resolved.
+
+Library totals count saved titles, TV series and music albums. Seasons, episodes, tracks, editions and copies have separate counts. A title attached to several connected apps is counted once. Separately saved entries count separately.
+
+Clear connected duplicates can merge on update and sync while keeping their cuts and sources. Conflicts and uncertain matches remain separate. See [Connected-library matching](CONNECTED-LIBRARIES.md).

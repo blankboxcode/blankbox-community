@@ -1,6 +1,6 @@
 # Start with Blank Box
 
-We put this guide in every Community package so you can choose the right download, start a library and protect it before depending on it.
+Use this guide to choose a package, install Blank Box and start your library.
 
 ## Choose the right download
 
@@ -12,7 +12,7 @@ We put this guide in every Community package so you can choose the right downloa
 
 `blankbox-source-VERSION.zip` is for people who want to build the browser client from source. It is not the guided installer or the package to use for a first restore drill. Replace `VERSION` with the release number on the ZIP you received, and keep all files from that one package together.
 
-The stable Linux/Docker release is 1.0.0 (catalog schema 22) with a native installation ZIP and a separate small prebuilt-image setup ZIP. The separate experimental Windows ZIP remains 0.1.0-beta.8 (schema 20), with its own Python runtime. Follow the guides supplied with your package; the older Windows download does not include this Linux/Docker feature update and cannot open a schema 22 catalog.
+The Linux/Docker release is 1.0.1 (catalog schema 23) with a native installation ZIP and a separate small prebuilt-image setup ZIP. The separate experimental Windows ZIP remains 0.1.0-beta.8 (schema 20), with its own Python runtime. Follow the guides supplied with your package; the older Windows download does not include this Linux/Docker feature update and cannot open a schema 23 catalog.
 
 Extract into a new folder. A native installation ZIP contains `RELEASE.json`, `restore.py` and platform setup files. The small Docker bundle contains `image.json`, `compose.yaml` and `setup-docker.sh` instead; it does not contain the application source. Check the publisher signature using an already trusted copy of `release_files.py` or compare the signing-key fingerprint through the publisher's independently verified release announcement before first installation. A checksum detects changed bytes; it does not identify the publisher.
 
@@ -22,10 +22,10 @@ For an **existing installation**, use [Update your installation](UPDATES.md#upda
 
 - Linux: `sudo ./setup-linux.sh`. Requires Python 3.10+ and systemd. See `guides/LINUX.md`.
 - Docker on Linux/amd64: configure `.env` and any `compose.override.yaml`, then run `./setup-docker.sh` from the small setup bundle. Use sudo if Docker requires it. The full ZIP local-build option remains available. See `guides/DOCKER.md`.
-- Windows x64: extract the Windows package and open `setup-windows.cmd`. Its private Python runtime is included. See `guides/WINDOWS.md`. Windows remains experimental pending real-machine acceptance.
+- Windows x64: extract the Windows package and open `setup-windows.cmd`. Its private Python runtime is included. See `guides/WINDOWS.md`. Windows remains experimental.
 - Direct Python from the full Community ZIP: `python3 server.py --data /path/to/new-data --port 25265`.
 
-For Portainer, follow [the Portainer guide](guides/PORTAINER.md); its stack uses our prebuilt image. Older local-build installations have a separate [migration guide](guides/DOCKER-MIGRATION.md).
+For Portainer, follow [the Portainer guide](guides/PORTAINER.md); its stack uses the prebuilt image. Older local-build installations have a separate [migration guide](guides/DOCKER-MIGRATION.md).
 
 ## Choose where to open your Linux installation
 
@@ -47,4 +47,4 @@ Folder discovery is off initially. When enabled, it offers stable files for revi
 
 Storage & Backup makes a compact verified catalog and managed-media backup. Settings → System & About can create a complete recovery point paired with installed offline packs and prepare a verified restore in a new location. Import can back up all indexed photos, home videos and personal files on a configured source, or up to 100 selected files per manual batch. Linked source-drive movies, music and books are not copied by a library recovery point. Use an external drive backup if you need those original bytes recoverable.
 
-Use loopback or a trusted private network. HTTPS through your own private reverse proxy is useful for browser camera access. Playback, cameras, removable drives and network shares need acceptance on the devices you intend to use.
+Use loopback or a trusted private network. HTTPS through your own private reverse proxy is useful for browser camera access. Check playback, camera access and your drives on the devices you plan to use.

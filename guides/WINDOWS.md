@@ -1,6 +1,6 @@
 # Install Blank Box on Windows
 
-We provide the current Windows x64 beta for one Windows 10/11 account. Use the `-windows-x64.zip` offline package: we include an isolated Python runtime, so you do not need to install Python or a CD-ripping application separately. This release runs in the foreground or after user sign-in; it is not a native Windows service. The smaller source ZIP is for advanced users who will install Python 3.10+ themselves.
+The available Windows package is the older experimental 0.1.0-beta.8 release for one Windows 10/11 x64 account. Use its `-windows-x64.zip` package. It includes Python, so you do not need to install a runtime or a CD-ripping application separately. This release runs in the foreground or after user sign-in; it is not a native Windows service. The smaller source ZIP is for advanced users who will install Python 3.10+ themselves.
 
 ## 1. Extract and run setup
 
@@ -75,8 +75,8 @@ Uninstall removes the matching startup task and retains all application, configu
 
 Windows local-network discovery varies by network and installed discovery services. Use the computer's local name or IP with port `25265`, and allow only private-network access in Windows Firewall. `blankbox.local` is not promised by the experimental Windows package. See [Local addresses and networking](NETWORKING.md).
 
-Real Windows-machine acceptance is still required before this path is labeled fully supported.
+This Windows package remains experimental. It cannot open schema 22 or 23 catalogs from the current Linux/Docker releases.
 
 ## Audio-CD import (experimental)
 
-Blank Box can enumerate Windows optical drives and use Windows' read-only CD APIs to create lossless WAV tracks, linked to the physical CD in your library. It does not require a separate CD-ripping program or online metadata service. WAV uses more storage than FLAC; the browser player can use the imported tracks, and you can edit placeholder names afterward. This adapter has passed simulated track-list and catalog tests but has **not** passed a real Windows PC/audio-CD test. Do not rely on it as the only preservation copy until a representative drive, clean/scratched discs, playback, and a restore have been tested. The Windows x64 offline package includes its own Python runtime.
+Blank Box can enumerate Windows optical drives and use Windows' read-only CD APIs to create lossless WAV tracks, linked to the physical CD in your library. It does not require a separate CD-ripping program or online metadata service. WAV uses more storage than FLAC; the browser player can use the imported tracks, and you can edit placeholder names afterward. We haven’t tested this adapter with a real Windows PC and audio CD. Keep the original disc and an independent backup; try an import, playback and restore on your own drive before relying on it. The Windows x64 offline package includes its own Python runtime.

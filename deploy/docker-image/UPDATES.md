@@ -1,6 +1,6 @@
 # Update Blank Box
 
-We keep Core and metapack updates separate and optional. Your existing library remains usable offline without either. We do not require an update service or background download.
+Software and offline database updates are optional and separate. You can keep using your existing library offline. Download an update when you choose to install it.
 
 ## Trust
 
@@ -10,11 +10,11 @@ Release file inventories and public pack manifests use RSA-PSS with SHA-256 and 
 python3 /path/to/trusted/release_files.py /path/to/extracted-new-package
 ```
 
-Public pack signatures are checked against the installed Core key before activation. Changing a pack database invalidates its signed hash. Changing the signature, publisher identity or manifest is rejected. Keep the trusted key with independent backups. A first download needs independent confirmation of the key fingerprint from the publisher. Publisher key rotation requires a separately reviewed Core/trust update; an imported pack cannot replace the key.
+Public pack signatures are checked against the installed Core key before activation. Changing a pack database invalidates its signed hash. Changing the signature, publisher identity or manifest is rejected. Keep the trusted key with independent backups. A first download needs independent confirmation of the key fingerprint from the publisher. An imported pack cannot replace the trusted key.
 
 ## Update your installation
 
-Choose the [native Linux installation ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v1.0.0/blankbox-community-1.0.0.zip) or the small [Docker image setup ZIP](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/downloads/blankbox-docker-1.0.0-1.zip), then extract it into a **new folder**. Keep your current installation and data where they are. Source archives are developer downloads.
+Choose the [native Linux installation ZIP](https://github.com/blankboxcode/blankbox-community/releases/download/v1.0.1/blankbox-community-1.0.1.zip) or the small [Docker image setup ZIP](https://raw.githubusercontent.com/blankboxcode/blankbox-community/main/downloads/blankbox-docker-1.0.1-1.zip), then extract it into a **new folder**. Keep your current installation and data where they are. Source archives are developer downloads.
 
 Before updating, open **Settings → System & About → Update Blank Box software**, create a complete recovery point on your configured separate backup drive, and wait for it to finish. The web app prepares the backup; the platform installer performs the update. A library recovery point cannot recreate missing linked original files, so back up your source drives separately.
 
@@ -58,11 +58,11 @@ To continue building locally, use the full Linux/Docker installation ZIP and its
 
 ### Windows
 
-Our separate Windows download remains the experimental **0.1.0-beta.8** package, schema **20**. This Linux/Docker update does not include a new Windows installer. Follow the guide supplied with the Windows package and do not open an upgraded schema 22 catalog with it.
+The separate Windows download remains the experimental **0.1.0-beta.8** package, schema **20**. This Linux/Docker update does not include a new Windows installer. Follow the guide supplied with the Windows package and do not open an upgraded schema 23 catalog with it.
 
 ## Rollback
 
-Version 1.0.0 keeps catalog schema **22**. Existing schema 22 libraries need no migration. Older schema 20 Linux/Docker libraries migrate to schema 22. Existing accounts, covers, copy IDs and reference selections are retained. An older Core cannot read schema 22. Returning to it requires both its application files and its **paired pre-update catalog/assets snapshot**. Preserve any later edits before restoring that earlier state.
+Version 1.0.1 uses catalog schema **23**. Existing schema 22 and older supported Linux/Docker libraries migrate to schema 23, adding preorder and delivery tables. Existing accounts, covers, copy IDs and reference selections are retained. Clear connected duplicates can also merge during the first startup and after syncs, retaining sources and compatible entered details. Conflicts and uncertain matches stay separate; see [Connected libraries](guides/CONNECTED-LIBRARIES.md). Returning to a pre-consolidation arrangement requires that earlier catalog/assets pair. Version 1.0.0 and older Core versions cannot read schema 23. Returning to it requires both its application files and its **paired pre-update catalog/assets snapshot**. Preserve any later edits before restoring that earlier state.
 
 For a compatible native Linux rollback:
 
@@ -90,6 +90,6 @@ Before a pack update, stop Core and make an offline snapshot with the installed 
 python3 maintenance.py backup --config /path/to/config.json --destination /separate/backup/pre-pack-update.sqlite3
 ```
 
-Keep the resulting `.assets` directory beside that SQLite file. Restart Core and import the chosen pack. The reader validates bounded archive membership, signatures, database hash, schema, records, aliases and identity constraints before adding an immutable version. It retains previous versions and publishes the new manifest only after the data file is complete. Equal-version conflicts and downgrades are rejected. A failed validation leaves the selected pack unchanged. Confirmed household facts keep prior evidence and IDs; installed packs cannot merge household items from title similarity.
+Keep the resulting `.assets` directory beside that SQLite file. Restart Core and import the chosen pack. Blank Box checks the pack’s signature, database and compatibility before installing it. Previous versions are retained. The new version becomes active only when installation is complete. Equal-version conflicts and downgrades are rejected. A failed validation leaves the selected pack unchanged. Confirmed household facts keep prior evidence and IDs; installed packs cannot merge household items from title similarity.
 
 To reverse a pack/catalog change, stop Core and use `maintenance.py restore --config ... --backup ...` with the paired snapshot. The operation refuses a running Core. It retains the current catalog and displaced pack directories. Ordinary pack removal is an explicit Settings choice and keeps saved household knowledge; reinstall remains optional. A full pack is the current update unit. Delta downloads and an online catalog are not required or implemented.

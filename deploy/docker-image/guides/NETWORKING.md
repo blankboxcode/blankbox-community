@@ -1,6 +1,6 @@
 # Local addresses and networking
 
-We set Blank Box Community to listen on port `25265` by default. You can change it if that port is already in use.
+Blank Box Community listens on port `25265` by default. You can change it if that port is already in use.
 
 ## Choose direct access
 
@@ -31,7 +31,7 @@ Tailscale Serve still reaches Blank Box on your own server. It can forward a pri
 
 `blankbox.local` is multicast DNS, not a public website. It normally works only on the same broadcast network, can be blocked by guest Wi-Fi/VLAN isolation, and can conflict if two devices claim the same name. It does not provide HTTPS by itself.
 
-A bare `http://blankbox.local` without `:25265` would require port 80 or a reverse proxy. Our Community installer leaves existing ports 80 and 443 alone. Include `:25265` unless you configure your own reverse proxy.
+A bare `http://blankbox.local` without `:25265` would require port 80 or a reverse proxy. The Community installer leaves existing ports 80 and 443 alone. Include `:25265` unless you configure your own reverse proxy.
 
 ## Change the port
 
@@ -42,7 +42,7 @@ A bare `http://blankbox.local` without `:25265` would require port 80 or a rever
 
 ## LAN safety
 
-Binding to `127.0.0.1` accepts only connections from the same computer. Binding to `0.0.0.0` accepts connections reaching the computer's interfaces. Use LAN binding only on a trusted private network, retain authentication, and do not forward the port through a router. Tailscale Serve or another reviewed HTTPS reverse proxy is preferable for remote access.
+Binding to `127.0.0.1` accepts only connections from the same computer. Binding to `0.0.0.0` accepts connections reaching the computer's interfaces. Use LAN binding only on a trusted private network, retain authentication, and do not forward the port through a router. Tailscale Serve or another properly configured HTTPS reverse proxy is preferable for remote access.
 
 ## If another device cannot connect
 

@@ -16,7 +16,7 @@ Different rules must all match. Multiple choices within one rule match any selec
 
 Halloween and holiday starting points open an editable draft. Review the genres before saving. Collections group existing household titles without moving files, creating editions, or changing copy counts. Removing a collection removes its grouping only.
 
-Use **Plan missing titles** for the separate Complete My Collection / Intend to Buy workflow. Missing editions require reference evidence; store inventory does not define collection completeness.
+Use **Plan missing titles** for the separate Complete My Collection / Wishlist workflow. Missing editions require reference evidence; store inventory does not define collection completeness.
 
 ## Suggested collections and missing titles
 
@@ -26,13 +26,13 @@ Each suggestion shows titles already in your library out of the known reference 
 
 Use **Approve all (count)** to create editable collections and linked plans from every currently offered suggestion, including those under Show more. It uses the suggested names and all listed members, then shows completion status. It creates no buying intentions or owned copies. You can edit or remove each resulting collection afterward. Later suggestions require another explicit approval. Groups remain recommendations with partial reference coverage; source groups over 200 titles are kept out of automatic completion plans.
 
-Choose **Review & save collection**, rename it and deselect titles outside your preferred scope. Saving creates an editable collection and a linked title plan. **Intend to Buy** can add a missing reference as a deliberate intention; the desired format is a preference, not evidence that that release exists. **Saved collection sets → Edit titles & order** can change the denominator, add/remove/reorder titles and choose desired formats. Ignored titles are excluded from the goal. Existing connected titles are not shown as missing titles in an accepted Any-format title plan.
+Choose **Review & save collection**, rename it and deselect titles outside your preferred scope. Saving creates an editable collection and a linked title plan. **Wishlist** can add a missing reference as a deliberate intention; the desired format is a preference, not evidence that that release exists. **Saved collection sets → Edit titles & order** can change the denominator, add/remove/reorder titles and choose desired formats. Ignored titles are excluded from the goal. Existing connected titles are not shown as missing titles in an accepted Any-format title plan.
 
 When an item's genre is empty, a consistent exact-year/title reference or saved identifier can inform its collection genres without changing the saved item or confirming a metadata match. Your own genres and explicit corrections take priority. Saving a genre/rule collection retains its reviewed fallback genre clues, so the collection can remain useful after pack removal. No original files, copies or upstream provider records change.
 
 The installation package includes optional Movies, Books, Music and TV Shows metapacks. They install on a fresh household once, stay separate from owned media, and remain removable. Restarts and upgrades do not reinstall a removed pack or replace an existing chosen version. Existing households keep their current pack selection; bundled packs remain available in Settings for deliberate installation or reinstallation. Core, manual collections and supplied source groups work with no packs. See ../METAPACKS.md for exact coverage.
 
-Our current packs are Movies v4 (62,306 genre-tagged titles of 96,861), Books v7, Music v5 and TV Shows v4 (89,608 of 152,965). We do not include a CD proof, Game or Comic pack. Missing tags remain unknown rather than guessed from titles. See [Metapacks](../METAPACKS.md) for coverage and edition counts.
+The included packs are Movies v4 (62,306 genre-tagged titles of 96,861), Books v7, Music v5 and TV Shows v4 (89,608 of 152,965). CD track-layout matching, Game and Comic packs are not included. Missing tags remain unknown rather than guessed from titles. See [Metapacks](../METAPACKS.md) for coverage and edition counts.
 
 ## Genres and your own categories
 
@@ -46,7 +46,7 @@ Open the item's **Activity** section for local status controls and **History**. 
 
 TV season status appears inside each expanded season, with Whole Series & Activity History kept separately. History can also record a specific episode such as `S1E1`. Recording a season or episode does not mark the entire series watched. An optional edition identifies what you used; activity still belongs to the household library item.
 
-This first version is manual and stored on your Blank Box. Playback resume positions and Plex/Jellyfin refreshes do not automatically change it. External watch-service synchronization is not implemented. The full catalog export includes collections, custom genres, and activity history; media-byte backup is separate.
+Activity status is entered manually and saved in your Blank Box library. Playback resume positions and Plex/Jellyfin refreshes do not automatically change it. External watch-service synchronization is not implemented. The full catalog export includes collections, custom genres, and activity history; media-byte backup is separate.
 
 ## Add physical items and choose your defaults
 
@@ -54,7 +54,7 @@ Open **Import → Add physical item** or **Physical Media → Add physical item*
 
 **Search for a title** starts with **Blank Box Database**, which searches installed Offline Metapacks on your computer. Choose **My Library** for saved titles or **Connected libraries** for synced Plex/Jellyfin titles. Search uses the title you entered; you do not need to enter it again. Select a reference and confirm the physical item, or choose an existing library title and decide whether this is another copy of its edition or a different edition. A title match alone does not prove the exact physical edition.
 
-Use **Add without a match** to save your entered details. We check your library before creating a new title. If there are possible duplicates, add the copy to a matching title or explicitly confirm a separate title. No item is saved simply by searching, choosing a default or scanning a barcode. Closing a changed draft asks before clearing it.
+Use **Add without a match** to save your entered details. Blank Box checks your library before creating a new title. If there are possible duplicates, add the copy to a matching title or explicitly confirm a separate title. No item is saved simply by searching, choosing a default or scanning a barcode. Closing a changed draft asks before clearing it.
 
 In **Settings → Collection → Physical Media preferences**, set a starting format for each media type and **Default title search**, then save. For example, set Movies to **4K UHD Blu-ray** and Music to **Vinyl**. These are starting choices; each copy can use a different format. **Save … as my … default** and **Use this search as my default** save the current choice directly from the add screen. Saving a format as your default also makes that format visible if it was hidden.
 
@@ -86,7 +86,7 @@ Open a title to see its artwork, playback choices and **Your editions** in a pop
 
 ## Import a large collection list
 
-Choose a UTF-8 CSV, TSV or text file through **Import Media → Import a title list**. We support files up to **100 MB** and **100,000 rows**, with up to 60 columns and 4,000 characters per cell. Larger row counts need separate files.
+Choose a UTF-8 CSV, TSV or text file through **Import Media → Import a title list**. Files can be up to **100 MB** and **100,000 rows**, with up to 60 columns and 4,000 characters per cell. Larger row counts need separate files.
 
 The text box shows a short preview of an uploaded file. Blank Box checks the whole file, then prepares its rows in the background after you confirm the columns and types. Progress appears in the import screen. Keep Blank Box running until preparation finishes. Preparation does not add titles; review the results before saving them. A completed review remains available through **Resume review** after closing the screen or restarting. If preparation is interrupted, choose the file again.
 
@@ -96,7 +96,7 @@ Rows appear 25 at a time. With offline database review enabled, save the reviewe
 
 Export your collection as CSV from blu-ray.com, then open **Import Media → Import a title list** and choose that file. Blank Box recognizes the collection columns and selects physical copies. Review the mapped columns, then continue to **Review & add**.
 
-We keep the site release ID separate from barcodes. The import reads the disc format, film year, studio, runtime, recorded purchase price and comments. The disc release date stays with the physical release. It does not replace the movie's original release date. A trailing `4K` label is removed from the film title when the export's Media column identifies a 4K release; the original title and supplied fields remain recorded.
+The site release ID stays separate from barcodes. The import reads the disc format, film year, studio, runtime, recorded purchase price and comments. The disc release date stays with the physical release. It does not replace the movie's original release date. A trailing `4K` label is removed from the film title when the export's Media column identifies a 4K release; the original title and supplied fields remain recorded.
 
 Matching titles, recorded release IDs and repeated rows need review. Sharing title words alone does not block an import. Different TV seasons stay separate, and optional library matches let you attach a season or edition to an existing title deliberately. Reopening the same staged export resumes it without adding committed rows again.
 
